@@ -14,7 +14,7 @@ jobs:
         env:
           WEBHOOK_URL: ${{ secrets.DOCS_SYNC_WEBHOOK_URL }}
         run: |
-          # Send a fixed trigger message — no dynamic content, no injection risk
+          # English-only doc sync on every push
           curl -s -o /dev/null -w "%{http_code}" \
             -H "Content-Type: application/json" \
             -d '{"content":"🔄 docs-sync"}' \

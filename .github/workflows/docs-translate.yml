@@ -1,0 +1,20 @@
+name: Documentation Translation (All Languages)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:  # Manual trigger from GitHub UI
+
+jobs:
+  trigger-docs-translate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger full translation via Discord webhook
+        env:
+          WEBHOOK_URL: ${{ secrets.DOCS_SYNC_WEBHOOK_URL }}
+        run: |
+          # Full translation to all languages (ja, zh-CN, ko, es, pt-BR, fr)
+          curl -s -o /dev/null -w "%{http_code}" \
+            -H "Content-Type: application/json" \
+            -d '{"content":"🔄 docs-sync-translate"}' \
+            "$WEBHOOK_URL"
