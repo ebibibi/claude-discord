@@ -70,13 +70,34 @@ uv run python -m src.main
 
 ## Architecture
 
-This bot is intentionally simple - it's a thin bridge between Discord and Claude Code CLI:
+This project is a **framework** (reusable library) — not a ready-made bot for a specific server.
 
 - **No custom AI logic** - Claude Code handles all reasoning, tool use, and context management
-- **No memory system** - Claude Code's built-in session management + CLAUDE.md + Obsidian handle memory
+- **No memory system** - Claude Code's built-in session management + CLAUDE.md handle memory
 - **No tool definitions** - Claude Code has its own comprehensive tool set
 
-The bot's job is purely UI: accept messages, show status, deliver responses.
+The framework's job is purely UI: accept messages, show status, deliver responses.
+
+### Usage Patterns
+
+**Standalone** — Run `claude-discord` as its own bot process with a dedicated bot token:
+
+```bash
+uv run python -m src.main
+```
+
+**Cog integration** — Import the `ClaudeChatCog` into your existing discord.py bot. This is the recommended approach if you already have a bot running, since Discord allows only one Gateway connection per token:
+
+```python
+from claude_discord.cogs.claude_chat import ClaudeChatCog
+from claude_discord.claude.runner import ClaudeRunner
+from claude_discord.database.repository import SessionRepository
+
+# In your existing bot setup:
+runner = ClaudeRunner(command="claude", model="sonnet")
+repo = SessionRepository("data/sessions.db")
+await bot.add_cog(ClaudeChatCog(bot, repo, runner))
+```
 
 ## Inspired By
 

@@ -1,6 +1,12 @@
 # claude-discord
 
-Discord frontend for Claude Code CLI.
+Discord frontend for Claude Code CLI. **This is a framework (OSS library), not a personal bot.**
+
+## Framework vs Instance
+
+- **claude-discord** (this repo) = reusable OSS framework. No personal config, no secrets, no server-specific logic.
+- Personal instances (e.g. EbiBot) import this framework's Cog into their own bot. The instance repo handles server-specific config, additional Cogs, and secrets.
+- When adding features: if it's useful to anyone → add here. If it's personal workflow → add in the instance repo.
 
 ## Architecture
 
