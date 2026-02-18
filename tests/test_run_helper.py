@@ -224,11 +224,12 @@ class TestRunClaudeInThread:
             and "Thinking" in (c.kwargs["embed"].title or "")
         ]
         assert len(thinking_embeds) == 1
-        # Description must use spoiler + code block for readability across all themes
+        # Description must use a plain code block (no spoiler) for guaranteed readability
         embed = thinking_embeds[0].kwargs["embed"]
         assert embed.description is not None
-        assert embed.description.startswith("||```")
-        assert embed.description.endswith("```||")
+        assert embed.description.startswith("```")
+        assert embed.description.endswith("```")
+        assert "||" not in embed.description
 
     @pytest.mark.asyncio
     async def test_error_handling(
@@ -278,9 +279,7 @@ class TestRunClaudeInThread:
         assert len(final_msgs) == 1
 
     @pytest.mark.asyncio
-    async def test_repo_none_skips_save(
-        self, thread: MagicMock, runner: MagicMock
-    ) -> None:
+    async def test_repo_none_skips_save(self, thread: MagicMock, runner: MagicMock) -> None:
         """When repo is None (automated workflows), session save should be skipped."""
         events = [
             StreamEvent(message_type=MessageType.SYSTEM, session_id="sess-1"),
