@@ -63,9 +63,10 @@ uv run ruff format claude_discord/
 ## Project Structure
 
 - `claude_discord/claude/` — Claude Code CLI interaction (runner, parser, types)
-- `claude_discord/cogs/` — Discord.py Cogs (chat, skill command)
-- `claude_discord/database/` — SQLite session persistence
+- `claude_discord/cogs/` — Discord.py Cogs (chat, skill command, webhook trigger, auto-upgrade)
+- `claude_discord/database/` — SQLite session and notification persistence
 - `claude_discord/discord_ui/` — Discord UI components (status, chunker, embeds)
+- `claude_discord/ext/` — Optional extensions (REST API server — requires aiohttp)
 - `tests/` — pytest test suite
 
 ## Submitting Changes

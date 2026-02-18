@@ -90,10 +90,7 @@ class WebhookTriggerCog(commands.Cog):
         ):
             return
 
-        if (
-            self.channel_ids is not None
-            and message.channel.id not in self.channel_ids
-        ):
+        if self.channel_ids is not None and message.channel.id not in self.channel_ids:
             return
 
         content = message.content.strip()
@@ -111,7 +108,8 @@ class WebhookTriggerCog(commands.Cog):
 
         logger.info(
             "Webhook trigger matched: prefix=%r, webhook_id=%d",
-            matched_prefix, message.webhook_id,
+            matched_prefix,
+            message.webhook_id,
         )
 
         lock = self._locks[matched_prefix]
