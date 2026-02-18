@@ -224,6 +224,11 @@ class TestRunClaudeInThread:
             and "Thinking" in (c.kwargs["embed"].title or "")
         ]
         assert len(thinking_embeds) == 1
+        # Description must use spoiler + code block for readability across all themes
+        embed = thinking_embeds[0].kwargs["embed"]
+        assert embed.description is not None
+        assert embed.description.startswith("||```")
+        assert embed.description.endswith("```||")
 
     @pytest.mark.asyncio
     async def test_error_handling(

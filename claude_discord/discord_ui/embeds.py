@@ -88,14 +88,19 @@ def tool_result_embed(tool_title: str, result_content: str) -> discord.Embed:
 
 
 def thinking_embed(thinking_text: str) -> discord.Embed:
-    """Create an embed for extended thinking content."""
-    # Truncate to fit Discord embed description limit (4096 chars)
-    truncated = thinking_text[:3900]
-    if len(thinking_text) > 3900:
+    """Create an embed for extended thinking content.
+
+    Wraps the text in a spoiler + code block so the revealed content is always
+    readable regardless of Discord theme (dark/light) or embed accent color.
+    """
+    # Reserve chars for spoiler + code block markers: ||```\n...\n```|| = 14 chars overhead
+    max_text = 4096 - 14 - len("\n... (truncated)")
+    truncated = thinking_text[:max_text]
+    if len(thinking_text) > max_text:
         truncated += "\n... (truncated)"
     return discord.Embed(
         title="\U0001f4ad Thinking",
-        description=f"||{truncated}||",
+        description=f"||```\n{truncated}\n```||",
         color=COLOR_THINKING,
     )
 
