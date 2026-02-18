@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "discord-claude-code-bridge"
+name = "claude-code-discord-bridge"
 version = "0.1.0"
 description = "Discord frontend for Claude Code CLI - chat with Claude Code via Discord threads"
 readme = "README.md"

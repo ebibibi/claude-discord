@@ -7,7 +7,7 @@ description: Enforce test-driven development — write tests FIRST, then impleme
 
 **This is not a suggestion. This is the workflow.**
 
-When adding features or fixing bugs in discord-claude-code-bridge, you MUST write tests before writing implementation code. No exceptions.
+When adding features or fixing bugs in claude-code-discord-bridge, you MUST write tests before writing implementation code. No exceptions.
 
 ## When to Activate
 

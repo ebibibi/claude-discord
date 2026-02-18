@@ -1,4 +1,4 @@
-# Contributing to discord-claude-code-bridge
+# Contributing to claude-code-discord-bridge
 
 Thanks for your interest in contributing! This project was built by Claude Code and welcomes contributions from both humans and AI agents.
 
@@ -35,8 +35,8 @@ main (always releasable)
 ## Development Setup
 
 ```bash
-git clone https://github.com/ebibibi/discord-claude-code-bridge.git
-cd discord-claude-code-bridge
+git clone https://github.com/ebibibi/claude-code-discord-bridge.git
+cd claude-code-discord-bridge
 uv sync --dev
 ```
 

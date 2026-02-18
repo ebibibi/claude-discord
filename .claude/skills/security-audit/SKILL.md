@@ -1,9 +1,9 @@
 ---
 name: security-audit
-description: Security checklist specific to discord-claude-code-bridge — subprocess injection, env leaks, input validation
+description: Security checklist specific to claude-code-discord-bridge — subprocess injection, env leaks, input validation
 ---
 
-# Security Audit — discord-claude-code-bridge Specific
+# Security Audit — claude-code-discord-bridge Specific
 
 This project runs **arbitrary Claude Code sessions** triggered by Discord messages. Security is the #1 priority.
 
@@ -24,7 +24,7 @@ This project runs **arbitrary Claude Code sessions** triggered by Discord messag
 | Session hijack | Fake session ID | Strict regex validation `^[a-f0-9\-]+$` |
 | Skill injection | Malicious skill name | Strict regex validation `^[\w-]+$` |
 | Secret exfiltration | Claude Bash tool reads env | Strip secrets from subprocess env |
-| Nesting attack | Claude spawns another discord-claude-code-bridge | Strip `CLAUDECODE` from env |
+| Nesting attack | Claude spawns another claude-code-discord-bridge | Strip `CLAUDECODE` from env |
 | Token theft | Bot token in logs/errors | Never log tokens, strip from env |
 
 ## Checklist

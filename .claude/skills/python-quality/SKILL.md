@@ -1,11 +1,11 @@
 ---
 name: python-quality
-description: Python coding patterns, idioms, and quality standards for discord-claude-code-bridge development
+description: Python coding patterns, idioms, and quality standards for claude-code-discord-bridge development
 ---
 
 # Python Quality — Patterns & Standards
 
-Coding standards and Pythonic patterns for discord-claude-code-bridge development. Based on PEP 8, modern Python 3.10+ idioms, and project conventions.
+Coding standards and Pythonic patterns for claude-code-discord-bridge development. Based on PEP 8, modern Python 3.10+ idioms, and project conventions.
 
 ## When to Activate
 

@@ -1,9 +1,9 @@
 ---
 name: test-guide
-description: Testing patterns for discord-claude-code-bridge — pytest, async testing, mocking Discord objects, TDD workflow
+description: Testing patterns for claude-code-discord-bridge — pytest, async testing, mocking Discord objects, TDD workflow
 ---
 
-# Test Guide — Testing Patterns for discord-claude-code-bridge
+# Test Guide — Testing Patterns for claude-code-discord-bridge
 
 ## When to Activate
 

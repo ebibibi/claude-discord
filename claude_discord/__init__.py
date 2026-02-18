@@ -1,4 +1,4 @@
-"""discord-claude-code-bridge — Discord frontend for Claude Code CLI.
+"""claude-code-discord-bridge — Discord frontend for Claude Code CLI.
 
 Built entirely by Claude Code itself. See README.md for details.
 

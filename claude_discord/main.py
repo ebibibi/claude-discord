@@ -1,4 +1,4 @@
-"""Entry point for discord-claude-code-bridge bot."""
+"""Entry point for claude-code-discord-bridge bot."""
 
 from __future__ import annotations
 

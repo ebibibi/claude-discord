@@ -1,4 +1,4 @@
-"""Cogs for discord-claude-code-bridge."""
+"""Cogs for claude-code-discord-bridge."""
 
 from .claude_chat import ClaudeChatCog
 from .skill_command import SkillCommandCog

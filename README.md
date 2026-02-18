@@ -1,6 +1,6 @@
-# discord-claude-code-bridge
+# claude-code-discord-bridge
 
-[![CI](https://github.com/ebibibi/discord-claude-code-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/ebibibi/discord-claude-code-bridge/actions/workflows/ci.yml)
+[![CI](https://github.com/ebibibi/claude-code-discord-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/ebibibi/claude-code-discord-bridge/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -33,7 +33,7 @@ I run 3-4 projects in parallel with Claude Code. On my phone via [Termux](https:
 
 ## How It Compares
 
-| | discord-claude-code-bridge | [OpenClaw](https://github.com/openclaw/openclaw) & similar |
+| | claude-code-discord-bridge | [OpenClaw](https://github.com/openclaw/openclaw) & similar |
 |---|---|---|
 | **Focus** | Mobile-first Claude Code access | Full-featured Discord AI bot |
 | **AI backend** | Claude Code CLI (subprocess) | Direct API calls |
@@ -83,8 +83,8 @@ You (Discord)  →  Bridge  →  Claude Code CLI
 ### Run standalone
 
 ```bash
-git clone https://github.com/ebibibi/discord-claude-code-bridge.git
-cd discord-claude-code-bridge
+git clone https://github.com/ebibibi/claude-code-discord-bridge.git
+cd claude-code-discord-bridge
 
 cp .env.example .env
 # Edit .env with your bot token and channel ID
@@ -97,7 +97,7 @@ uv run python -m claude_discord.main
 If you already have a discord.py bot running (Discord allows only one Gateway connection per token):
 
 ```bash
-uv add git+https://github.com/ebibibi/discord-claude-code-bridge.git
+uv add git+https://github.com/ebibibi/claude-code-discord-bridge.git
 ```
 
 ```python
@@ -116,7 +116,7 @@ await bot.add_cog(ClaudeChatCog(bot, repo, runner))
 Update to the latest version:
 
 ```bash
-uv lock --upgrade-package discord-claude-code-bridge && uv sync
+uv lock --upgrade-package claude-code-discord-bridge && uv sync
 ```
 
 ## Configuration
