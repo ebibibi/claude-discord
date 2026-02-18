@@ -6,6 +6,8 @@
 
 Use [Claude Code](https://docs.anthropic.com/en/docs/claude-code) from your phone. A thin Discord frontend that gives you **full Claude Code CLI access** through Discord threads — designed for mobile development when you're away from your terminal.
 
+**[日本語版 / Japanese](docs/ja/README.md)**
+
 > **Disclaimer:** This project is not affiliated with, endorsed by, or officially connected to Anthropic. "Claude" and "Claude Code" are trademarks of Anthropic, PBC. This is an independent open-source tool that interfaces with the Claude Code CLI.
 
 > **Built entirely by Claude Code.** This project was designed, implemented, tested, and documented by Claude Code itself — the AI coding agent from Anthropic. The human author has not read the source code. See [How This Project Was Built](#how-this-project-was-built) for details.
