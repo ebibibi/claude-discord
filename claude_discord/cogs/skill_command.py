@@ -26,9 +26,7 @@ from ._run_helper import run_claude_in_thread
 logger = logging.getLogger(__name__)
 
 # YAML frontmatter pattern to extract name/description from SKILL.md
-_FRONTMATTER_RE = re.compile(
-    r"^---\s*\n(?P<body>.*?)\n---", re.DOTALL
-)
+_FRONTMATTER_RE = re.compile(r"^---\s*\n(?P<body>.*?)\n---", re.DOTALL)
 _FIELD_RE = re.compile(r"^(?P<key>\w[\w-]*):\s*(?P<value>.+)$", re.MULTILINE)
 
 
@@ -106,7 +104,8 @@ class SkillCommandCog(commands.Cog):
         """Return up to 25 matching skill names for autocomplete."""
         current_lower = current.lower()
         matches = [
-            s for s in self._skills
+            s
+            for s in self._skills
             if current_lower in s["name"].lower() or current_lower in s["description"].lower()
         ]
         choices = []
@@ -133,9 +132,7 @@ class SkillCommandCog(commands.Cog):
 
         # Validate skill name — only alphanumeric, hyphens, underscores
         if not re.match(r"^[\w-]+$", name):
-            await interaction.response.send_message(
-                f"Invalid skill name: `{name}`", ephemeral=True
-            )
+            await interaction.response.send_message(f"Invalid skill name: `{name}`", ephemeral=True)
             return
 
         matched = next((s for s in self._skills if s["name"] == name), None)
@@ -158,9 +155,7 @@ class SkillCommandCog(commands.Cog):
             type=discord.ChannelType.public_thread,
         )
 
-        await interaction.followup.send(
-            f"Running `/{name}` → {thread.mention}"
-        )
+        await interaction.followup.send(f"Running `/{name}` → {thread.mention}")
 
         runner = self.runner.clone()
         await run_claude_in_thread(

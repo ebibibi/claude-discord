@@ -114,9 +114,7 @@ class StatusManager:
             # Remove old emoji
             if self._current_emoji:
                 with contextlib.suppress(discord.HTTPException, AttributeError):
-                    await self._message.remove_reaction(
-                        self._current_emoji, self._message.guild.me
-                    )
+                    await self._message.remove_reaction(self._current_emoji, self._message.guild.me)
 
             # Add new emoji
             if self._target_emoji:

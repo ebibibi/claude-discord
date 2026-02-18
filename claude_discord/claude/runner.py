@@ -120,9 +120,12 @@ class ClaudeRunner:
         args = [
             self.command,
             "-p",
-            "--output-format", "stream-json",
-            "--model", self.model,
-            "--permission-mode", self.permission_mode,
+            "--output-format",
+            "stream-json",
+            "--model",
+            self.model,
+            "--permission-mode",
+            self.permission_mode,
             "--verbose",
         ]
 
@@ -133,7 +136,7 @@ class ClaudeRunner:
             args.extend(["--allowedTools", ",".join(self.allowed_tools)])
 
         if session_id:
-            if not re.match(r'^[a-f0-9\-]+$', session_id):
+            if not re.match(r"^[a-f0-9\-]+$", session_id):
                 raise ValueError(f"Invalid session_id format: {session_id!r}")
             args.extend(["--resume", session_id])
 
@@ -144,12 +147,14 @@ class ClaudeRunner:
         return args
 
     # Environment variables that must never leak to the CLI subprocess.
-    _STRIPPED_ENV_KEYS = frozenset({
-        "CLAUDECODE",
-        "DISCORD_BOT_TOKEN",
-        "DISCORD_TOKEN",
-        "API_SECRET_KEY",
-    })
+    _STRIPPED_ENV_KEYS = frozenset(
+        {
+            "CLAUDECODE",
+            "DISCORD_BOT_TOKEN",
+            "DISCORD_TOKEN",
+            "API_SECRET_KEY",
+        }
+    )
 
     def _build_env(self) -> dict[str, str]:
         """Build environment variables for the subprocess.
@@ -157,10 +162,7 @@ class ClaudeRunner:
         Strips CLAUDECODE (nesting detection) and known secret variables
         so that the CLI process cannot read them via Bash tool.
         """
-        env = {
-            k: v for k, v in os.environ.items()
-            if k not in self._STRIPPED_ENV_KEYS
-        }
+        env = {k: v for k, v in os.environ.items() if k not in self._STRIPPED_ENV_KEYS}
         return env
 
     async def _read_stream(self) -> AsyncGenerator[StreamEvent, None]:

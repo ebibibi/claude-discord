@@ -2,6 +2,36 @@
 
 Thanks for your interest in contributing! This project was built by Claude Code and welcomes contributions from both humans and AI agents.
 
+## Branch Workflow
+
+We use **GitHub Flow** — a simple, PR-based workflow:
+
+```
+main (always releasable)
+  ├── feature/add-xxx   → PR → CI passes → review → merge
+  ├── fix/issue-123     → PR → CI passes → review → merge
+  └── (direct push to main is not allowed)
+```
+
+### Steps
+
+1. **Fork** the repo (or create a branch if you have write access)
+2. **Create a branch** from `main`:
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+3. **Make your changes** — write code, add tests
+4. **Push** your branch and **open a PR** against `main`
+5. **CI runs automatically** — tests + lint on Python 3.10/3.11/3.12
+6. Once CI passes and the PR is reviewed, it gets **merged to main**
+
+### Branch Naming
+
+- `feature/description` — New functionality
+- `fix/description` or `fix/issue-123` — Bug fixes
+- `docs/description` — Documentation only
+- `refactor/description` — Code restructuring without behavior change
+
 ## Development Setup
 
 ```bash
@@ -26,8 +56,8 @@ All tests must pass before submitting a PR.
 - **Python**: 3.10+ (use `from __future__ import annotations` for modern syntax)
 
 ```bash
-uv run ruff check .
-uv run ruff format .
+uv run ruff check claude_discord/
+uv run ruff format claude_discord/
 ```
 
 ## Project Structure
@@ -42,9 +72,14 @@ uv run ruff format .
 
 1. Fork the repo and create a feature branch
 2. Write tests for new functionality
-3. Ensure all tests pass: `uv run pytest tests/ -v`
-4. Ensure code passes linting: `uv run ruff check .`
-5. Submit a PR with a clear description of what and why
+3. Run locally before pushing:
+   ```bash
+   uv run ruff check claude_discord/
+   uv run ruff format --check claude_discord/
+   uv run pytest tests/ -v
+   ```
+4. Submit a PR with a clear description of what and why
+5. CI will run automatically — all checks must pass
 
 ## Adding a New Cog
 
