@@ -45,11 +45,13 @@ class ClaudeChatCog(commands.Cog):
         repo: SessionRepository,
         runner: ClaudeRunner,
         max_concurrent: int = 3,
+        allowed_user_ids: set[int] | None = None,
     ) -> None:
         self.bot = bot
         self.repo = repo
         self.runner = runner
         self._max_concurrent = max_concurrent
+        self._allowed_user_ids = allowed_user_ids
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._active_runners: dict[int, ClaudeRunner] = {}
 
@@ -59,6 +61,13 @@ class ClaudeChatCog(commands.Cog):
         # Ignore bot messages
         if message.author.bot:
             return
+
+        # Authorization check — if allowed_user_ids is set, only those users
+        # can invoke Claude.  When unset, channel-level Discord permissions
+        # are the only gate (suitable for private servers).
+        if self._allowed_user_ids is not None:
+            if message.author.id not in self._allowed_user_ids:
+                return
 
         # Check if message is in the configured channel (new conversation)
         if message.channel.id == self.bot.channel_id:

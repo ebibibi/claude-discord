@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 from collections.abc import AsyncGenerator
 
 from .parser import parse_line
@@ -126,16 +127,34 @@ class ClaudeRunner:
             args.extend(["--allowedTools", ",".join(self.allowed_tools)])
 
         if session_id:
+            if not re.match(r'^[a-f0-9\-]+$', session_id):
+                raise ValueError(f"Invalid session_id format: {session_id!r}")
             args.extend(["--resume", session_id])
 
+        # Use -- to separate flags from positional args (prevents prompt
+        # content starting with - from being interpreted as a flag)
+        args.append("--")
         args.append(prompt)
         return args
 
+    # Environment variables that must never leak to the CLI subprocess.
+    _STRIPPED_ENV_KEYS = frozenset({
+        "CLAUDECODE",
+        "DISCORD_BOT_TOKEN",
+        "DISCORD_TOKEN",
+        "API_SECRET_KEY",
+    })
+
     def _build_env(self) -> dict[str, str]:
-        """Build environment variables, ensuring CLAUDECODE is unset."""
-        env = os.environ.copy()
-        # Must unset CLAUDECODE to avoid nesting detection
-        env.pop("CLAUDECODE", None)
+        """Build environment variables for the subprocess.
+
+        Strips CLAUDECODE (nesting detection) and known secret variables
+        so that the CLI process cannot read them via Bash tool.
+        """
+        env = {
+            k: v for k, v in os.environ.items()
+            if k not in self._STRIPPED_ENV_KEYS
+        }
         return env
 
     async def _read_stream(self) -> AsyncGenerator[StreamEvent, None]:
@@ -172,7 +191,7 @@ class ClaudeRunner:
                 raw={},
                 message_type=MessageType.RESULT,
                 is_complete=True,
-                error=f"CLI exited with code {self._process.returncode}: {stderr_text[:500]}",
+                error=f"CLI exited with code {self._process.returncode}",
             )
 
     async def _cleanup(self) -> None:
