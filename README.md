@@ -55,6 +55,9 @@ I run 3-4 projects in parallel with Claude Code. On my phone via [Termux](https:
 - **Real-time status** — Emoji reactions show what Claude is doing (🧠 thinking, 🛠️ reading files, 💻 editing, 🌐 web search)
 - **Session persistence** — Continue conversations across messages via `--resume`
 - **Skill execution** — Run Claude Code skills (`/skill goodmorning`) via slash commands with autocomplete
+- **Webhook triggers** — Trigger Claude Code tasks from CI/CD pipelines via Discord webhooks
+- **Auto-upgrade** — Automatically update the bot when upstream packages are released
+- **REST API** — Push notifications to Discord from external tools (optional, requires aiohttp)
 - **Fence-aware splitting** — Long responses split at natural boundaries, never breaking code blocks
 - **Concurrent sessions** — Run multiple sessions in parallel (configurable limit)
 - **Security hardened** — No shell injection, secrets stripped from subprocess env, user authorization
@@ -147,6 +150,135 @@ uv lock --upgrade-package claude-code-discord-bridge && uv sync
    - Manage Messages (for reaction cleanup)
    - Read Message History
 
+## Webhook Integration
+
+Trigger Claude Code tasks from CI/CD pipelines (e.g. GitHub Actions) via Discord webhooks.
+
+```python
+from claude_discord import WebhookTriggerCog, WebhookTrigger, ClaudeRunner
+
+runner = ClaudeRunner(command="claude", model="sonnet")
+
+triggers = {
+    "🔄 docs-sync": WebhookTrigger(
+        prompt="Update documentation based on latest code changes.",
+        working_dir="/home/user/my-project",
+        timeout=600,
+    ),
+    "🚀 deploy": WebhookTrigger(
+        prompt="Deploy to staging environment.",
+        timeout=300,
+    ),
+}
+
+await bot.add_cog(WebhookTriggerCog(
+    bot=bot,
+    runner=runner,
+    triggers=triggers,
+    channel_ids={YOUR_CHANNEL_ID},
+))
+```
+
+**How it works:**
+1. Set up a Discord webhook in your channel
+2. Send a message matching the trigger prefix (e.g. `🔄 docs-sync`)
+3. The Cog creates a thread and runs Claude Code with the configured prompt
+4. Results are streamed back to the thread in real-time
+
+**Security:** Only webhook messages are processed. Optional `allowed_webhook_ids` for stricter control. Prompts are server-side — webhooks only select which trigger to fire.
+
+### GitHub Actions Example
+
+```yaml
+# .github/workflows/docs-sync.yml
+on:
+  push:
+    branches: [main]
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{"content": "🔄 docs-sync"}'
+```
+
+## Auto-Upgrade
+
+Automatically upgrade the bot when an upstream package is released.
+
+```python
+from claude_discord import AutoUpgradeCog, UpgradeConfig
+
+config = UpgradeConfig(
+    package_name="claude-code-discord-bridge",
+    trigger_prefix="🔄 bot-upgrade",
+    working_dir="/home/user/my-bot",
+    restart_command=["sudo", "systemctl", "restart", "my-bot.service"],
+)
+
+await bot.add_cog(AutoUpgradeCog(bot, config))
+```
+
+**Pipeline:** Upstream push → CI webhook → `🔄 bot-upgrade` → `uv lock --upgrade-package` → `uv sync` → service restart.
+
+Custom commands are supported via `upgrade_command` and `sync_command` parameters.
+
+## REST API
+
+Optional REST API for pushing notifications to Discord from external tools. Requires aiohttp:
+
+```bash
+uv add "claude-code-discord-bridge[api]"
+```
+
+```python
+from claude_discord import NotificationRepository
+from claude_discord.ext.api_server import ApiServer
+
+repo = NotificationRepository("data/notifications.db")
+await repo.init_db()
+
+api = ApiServer(
+    repo=repo,
+    bot=bot,
+    default_channel_id=YOUR_CHANNEL_ID,
+    host="127.0.0.1",
+    port=8080,
+    api_secret="your-secret-token",  # Optional Bearer auth
+)
+await api.start()
+```
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/health` | Health check |
+| POST | `/api/notify` | Send immediate notification |
+| POST | `/api/schedule` | Schedule notification for later |
+| GET | `/api/scheduled` | List pending notifications |
+| DELETE | `/api/scheduled/{id}` | Cancel a scheduled notification |
+
+### Examples
+
+```bash
+# Health check
+curl http://localhost:8080/api/health
+
+# Send notification
+curl -X POST http://localhost:8080/api/notify \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-secret-token" \
+  -d '{"message": "Build succeeded!", "title": "CI/CD"}'
+
+# Schedule notification
+curl -X POST http://localhost:8080/api/schedule \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Time to review PRs", "scheduled_at": "2026-01-01T09:00:00"}'
+```
+
 ## Architecture
 
 ```
@@ -156,6 +288,8 @@ claude_discord/
   cogs/
     claude_chat.py         # Main chat Cog (thread creation, message handling)
     skill_command.py       # /skill slash command with autocomplete
+    webhook_trigger.py     # Webhook → Claude Code task execution
+    auto_upgrade.py        # Webhook → package upgrade + restart
     _run_helper.py         # Shared Claude CLI execution logic
   claude/
     runner.py              # Claude CLI subprocess manager
@@ -164,10 +298,13 @@ claude_discord/
   database/
     models.py              # SQLite schema
     repository.py          # Session CRUD operations
+    notification_repo.py   # Scheduled notification CRUD
   discord_ui/
     status.py              # Emoji reaction status manager (debounced)
     chunker.py             # Fence-aware message splitting
     embeds.py              # Discord embed builders
+  ext/
+    api_server.py          # REST API server (optional, requires aiohttp)
   utils/
     logger.py              # Logging setup
 ```
@@ -195,7 +332,7 @@ claude_discord/
 uv run pytest tests/ -v --cov=claude_discord
 ```
 
-48 tests covering parser, chunker, repository, and runner logic.
+131 tests covering parser, chunker, repository, runner, webhook triggers, auto-upgrade, and REST API.
 
 ## How This Project Was Built
 

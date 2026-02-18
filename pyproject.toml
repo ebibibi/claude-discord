@@ -15,6 +15,9 @@ dependencies = [
     "python-dotenv>=1.0,<2.0",
 ]
 
+[project.optional-dependencies]
+api = ["aiohttp>=3.9"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["claude_discord"]
 
@@ -24,6 +27,7 @@ dev = [
     "pytest-asyncio>=0.23",
     "pytest-cov>=5.0",
     "ruff>=0.4",
+    "aiohttp>=3.9",
 ]
 
 [tool.pytest.ini_options]

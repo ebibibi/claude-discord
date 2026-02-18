@@ -250,8 +250,14 @@ dependencies = [
     { name = "python-dotenv" },
 ]
 
+[package.optional-dependencies]
+api = [
+    { name = "aiohttp" },
+]
+
 [package.dev-dependencies]
 dev = [
+    { name = "aiohttp" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -260,13 +266,16 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", marker = "extra == 'api'", specifier = ">=3.9" },
     { name = "aiosqlite", specifier = ">=0.20,<1.0" },
     { name = "discord-py", specifier = ">=2.4,<3.0" },
     { name = "python-dotenv", specifier = ">=1.0,<2.0" },
 ]
+provides-extras = ["api"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "aiohttp", specifier = ">=3.9" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-asyncio", specifier = ">=0.23" },
     { name = "pytest-cov", specifier = ">=5.0" },

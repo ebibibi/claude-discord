@@ -11,8 +11,11 @@ Quick start::
 from .claude.parser import parse_line
 from .claude.runner import ClaudeRunner
 from .claude.types import MessageType, StreamEvent, ToolCategory, ToolUseEvent
+from .cogs.auto_upgrade import AutoUpgradeCog, UpgradeConfig
 from .cogs.claude_chat import ClaudeChatCog
 from .cogs.skill_command import SkillCommandCog
+from .cogs.webhook_trigger import WebhookTrigger, WebhookTriggerCog
+from .database.notification_repo import NotificationRepository
 from .database.repository import SessionRepository
 from .discord_ui.chunker import chunk_message
 from .discord_ui.embeds import (
@@ -29,6 +32,12 @@ __all__ = [
     "ClaudeChatCog",
     "SkillCommandCog",
     "SessionRepository",
+    # Webhook & Automation
+    "WebhookTriggerCog",
+    "WebhookTrigger",
+    "AutoUpgradeCog",
+    "UpgradeConfig",
+    "NotificationRepository",
     # Types
     "MessageType",
     "StreamEvent",
