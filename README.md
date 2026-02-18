@@ -26,7 +26,7 @@ You (Discord)  →  claude-discord  →  Claude Code CLI
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.10+
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
 - A Discord bot token with Message Content intent enabled
 
@@ -39,7 +39,7 @@ cd claude-discord
 cp .env.example .env
 # Edit .env with your bot token and channel ID
 
-uv run python -m src.main
+uv run python -m claude_discord.main
 ```
 
 ## Configuration
@@ -70,7 +70,7 @@ uv run python -m src.main
 
 ## Architecture
 
-This project is a **framework** (reusable library) — not a ready-made bot for a specific server.
+This project is a **framework** (installable Python package) — not a ready-made bot for a specific server.
 
 - **No custom AI logic** - Claude Code handles all reasoning, tool use, and context management
 - **No memory system** - Claude Code's built-in session management + CLAUDE.md handle memory
@@ -83,10 +83,15 @@ The framework's job is purely UI: accept messages, show status, deliver response
 **Standalone** — Run `claude-discord` as its own bot process with a dedicated bot token:
 
 ```bash
-uv run python -m src.main
+uv run python -m claude_discord.main
 ```
 
-**Cog integration** — Import the `ClaudeChatCog` into your existing discord.py bot. This is the recommended approach if you already have a bot running, since Discord allows only one Gateway connection per token:
+**Package install + Cog integration** — Install from GitHub and import the `ClaudeChatCog` into your existing discord.py bot. This is the recommended approach if you already have a bot running, since Discord allows only one Gateway connection per token:
+
+```bash
+# In your bot project:
+uv add git+https://github.com/ebibibi/claude-discord.git
+```
 
 ```python
 from claude_discord.cogs.claude_chat import ClaudeChatCog
@@ -97,6 +102,18 @@ from claude_discord.database.repository import SessionRepository
 runner = ClaudeRunner(command="claude", model="sonnet")
 repo = SessionRepository("data/sessions.db")
 await bot.add_cog(ClaudeChatCog(bot, repo, runner))
+```
+
+Update to the latest version:
+
+```bash
+uv lock --upgrade-package claude-discord && uv sync
+```
+
+## Testing
+
+```bash
+uv run pytest tests/ -v --cov=claude_discord
 ```
 
 ## Inspired By

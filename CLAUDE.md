@@ -5,12 +5,12 @@ Discord frontend for Claude Code CLI. **This is a framework (OSS library), not a
 ## Framework vs Instance
 
 - **claude-discord** (this repo) = reusable OSS framework. No personal config, no secrets, no server-specific logic.
-- Personal instances (e.g. EbiBot) import this framework's Cog into their own bot. The instance repo handles server-specific config, additional Cogs, and secrets.
+- Personal instances (e.g. EbiBot) install this as a package and import the Cog. The instance repo handles server-specific config, additional Cogs, and secrets.
 - When adding features: if it's useful to anyone → add here. If it's personal workflow → add in the instance repo.
 
 ## Architecture
 
-- **Python 3.11+** with discord.py v2
+- **Python 3.10+** with discord.py v2
 - **Cog pattern** for modular features
 - **Repository pattern** for data access (SQLite via aiosqlite)
 - **asyncio.subprocess** for Claude Code CLI invocation
@@ -21,35 +21,49 @@ Discord frontend for Claude Code CLI. **This is a framework (OSS library), not a
 2. **Thread = Session**: Each Discord thread maps 1:1 to a Claude Code session ID. Replies in a thread continue the same session via `--resume`.
 3. **Emoji reactions for status**: Non-intrusive progress indication on the user's message.
 4. **Fence-aware chunking**: Never split Discord messages inside a code block.
+5. **Installable package**: `claude_discord` is a proper Python package. Consumers install via `uv add git+...` or `pip install git+...`, not by copying files.
 
 ## Package Management
 
 Uses **uv** for fast dependency management. No venv setup needed.
 
-## Running
+## Running (standalone)
 
 ```bash
 cp .env.example .env
 # Edit .env with your Discord bot token and channel ID
-uv run python -m src.main
+uv run python -m claude_discord.main
 ```
 
 ## Testing
 
 ```bash
-uv run pytest tests/ -v --cov=src
+uv run pytest tests/ -v --cov=claude_discord
 ```
 
 ## Project Structure
 
-- `src/main.py` - Entry point (bot + event loop)
-- `src/bot.py` - Discord Bot class
-- `src/cogs/claude_chat.py` - Main chat Cog (thread creation, message handling)
-- `src/claude/runner.py` - Claude CLI subprocess manager
-- `src/claude/parser.py` - stream-json event parser
-- `src/claude/types.py` - Type definitions for SDK messages
-- `src/database/models.py` - SQLite schema
-- `src/database/repository.py` - Session CRUD operations
-- `src/discord_ui/status.py` - Emoji reaction status manager
-- `src/discord_ui/chunker.py` - Fence-aware message splitting
-- `src/discord_ui/embeds.py` - Discord embed builders
+```
+claude_discord/          # Installable Python package
+  __init__.py
+  main.py                # Standalone entry point
+  bot.py                 # Discord Bot class
+  cogs/
+    claude_chat.py       # Main chat Cog (thread creation, message handling)
+  claude/
+    runner.py            # Claude CLI subprocess manager
+    parser.py            # stream-json event parser
+    types.py             # Type definitions for SDK messages
+  database/
+    models.py            # SQLite schema
+    repository.py        # Session CRUD operations
+  discord_ui/
+    status.py            # Emoji reaction status manager
+    chunker.py           # Fence-aware message splitting
+    embeds.py            # Discord embed builders
+  utils/
+    logger.py            # Logging setup
+tests/                   # pytest test suite (36 tests)
+pyproject.toml           # Package metadata + dependencies
+uv.lock                  # Dependency lock file
+```
