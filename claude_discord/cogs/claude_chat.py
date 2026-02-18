@@ -84,7 +84,7 @@ class ClaudeChatCog(commands.Cog):
         ):
             await self._handle_thread_reply(message)
 
-    @app_commands.command(name="stop", description="Stop the currently running Claude Code session (session is preserved)")
+    @app_commands.command(name="stop", description="Stop the active session (session is preserved)")
     async def stop_session(self, interaction: discord.Interaction) -> None:
         """Stop the active Claude run without clearing the session.
 
@@ -166,11 +166,19 @@ class ClaudeChatCog(commands.Cog):
         sections: list[str] = []
         for attachment in message.attachments[:_MAX_ATTACHMENTS]:
             if attachment.size > _MAX_ATTACHMENT_BYTES:
-                logger.debug("Skipping attachment %s: too large (%d bytes)", attachment.filename, attachment.size)
+                logger.debug(
+                    "Skipping attachment %s: too large (%d bytes)",
+                    attachment.filename,
+                    attachment.size,
+                )
                 continue
             content_type = attachment.content_type or ""
             if not content_type.startswith(_ALLOWED_MIME_PREFIXES):
-                logger.debug("Skipping attachment %s: unsupported type %s", attachment.filename, content_type)
+                logger.debug(
+                    "Skipping attachment %s: unsupported type %s",
+                    attachment.filename,
+                    content_type,
+                )
                 continue
             total_bytes += attachment.size
             if total_bytes > _MAX_TOTAL_BYTES:
