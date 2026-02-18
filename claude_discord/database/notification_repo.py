@@ -83,6 +83,7 @@ class NotificationRepository:
             )
             await db.commit()
             row_id = cursor.lastrowid
+        assert row_id is not None, "INSERT should always return a lastrowid"
         logger.info("Notification scheduled: id=%d, at=%s", row_id, scheduled_at)
         return row_id
 

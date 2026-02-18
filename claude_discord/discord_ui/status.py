@@ -91,7 +91,9 @@ class StatusManager:
             self._debounce_task.cancel()
         if self._current_emoji:
             with contextlib.suppress(discord.HTTPException, AttributeError):
-                await self._message.remove_reaction(self._current_emoji, self._message.guild.me)
+                guild = self._message.guild
+                if guild:
+                    await self._message.remove_reaction(self._current_emoji, guild.me)
             self._current_emoji = None
 
     async def _set_status(self, emoji: str) -> None:
@@ -114,7 +116,9 @@ class StatusManager:
             # Remove old emoji
             if self._current_emoji:
                 with contextlib.suppress(discord.HTTPException, AttributeError):
-                    await self._message.remove_reaction(self._current_emoji, self._message.guild.me)
+                    guild = self._message.guild
+                    if guild:
+                        await self._message.remove_reaction(self._current_emoji, guild.me)
 
             # Add new emoji
             if self._target_emoji:
