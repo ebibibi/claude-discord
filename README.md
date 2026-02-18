@@ -1,18 +1,55 @@
 # claude-discord
 
-A Discord frontend for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI. Chat with Claude Code through Discord threads — see real-time status updates, tool usage, and manage sessions from your phone.
+Use Claude Code from your phone. A thin Discord frontend that gives you **full Claude Code CLI access** through Discord threads — designed for mobile development when you're away from your terminal.
 
 > **Built entirely by Claude Code.** This project was designed, implemented, tested, and documented by Claude Code itself — the AI coding agent from Anthropic. The human author has not read the source code. See [How This Project Was Built](#how-this-project-was-built) for details.
 
+## Why This Exists
+
+I run 3-4 projects in parallel with Claude Code. On my phone (via [StarMax](https://apps.apple.com/app/id6504527606)), managing multiple terminal sessions became painful — which session was which project? What was I doing in each one? The context-switching overhead killed my productivity.
+
+**Discord solves this perfectly:**
+
+- Each project conversation is a **named thread** — instantly scannable
+- Threads preserve full history — come back hours later and pick up where you left off
+- Emoji reactions show status at a glance — no need to scroll through terminal output
+- Discord is free, works on every phone, and handles notifications natively
+
+## What This Is (and Isn't)
+
+**This is:** A focused bridge between Discord and Claude Code CLI. It spawns `claude -p --output-format stream-json` as a subprocess, parses the output, and posts it back to Discord. That's it.
+
+**This is not:** A feature-rich Discord bot, an AI chatbot framework, or a replacement for the Claude Code terminal experience. There's no custom AI logic, no plugin system, no admin dashboard.
+
+**Your Claude Code environment does the heavy lifting.** Your CLAUDE.md, skills, tools, memory, MCP servers — they all work exactly as they do in the terminal. claude-discord just provides the UI layer.
+
+**Security model:** Run it on your own private Discord server, in a channel only you can access. The bot is intentionally simple — fewer features means fewer attack surfaces. You built it yourself, you can read every line of code, and there's nothing phoning home.
+
+## How It Compares
+
+| | claude-discord | [OpenClaw](https://github.com/openclaw/openclaw) & similar |
+|---|---|---|
+| **Focus** | Mobile-first Claude Code access | Full-featured Discord AI bot |
+| **AI backend** | Claude Code CLI (subprocess) | Direct API calls |
+| **Features** | Minimal: threads, status, chunking | Extensive: plugins, admin, multi-model |
+| **Configuration** | Your existing Claude Code setup | Bot-specific config |
+| **Skills/tools** | Inherited from Claude Code | Defined in bot config |
+| **Target user** | Developer who already uses Claude Code | Anyone wanting an AI Discord bot |
+| **Complexity** | ~800 lines of Python | Thousands of lines |
+
+**If you want a Discord AI chatbot**, use OpenClaw or similar projects — they're far more capable.
+
+**If you want to use Claude Code from your phone**, with all your existing project context, skills, and tools — that's what this is for.
+
 ## Features
 
-- **Thread-based conversations** — Each task gets its own Discord thread, mapped 1:1 to a Claude Code session
+- **Thread = Session** — Each task gets its own Discord thread, mapped 1:1 to a Claude Code session
 - **Real-time status** — Emoji reactions show what Claude is doing (🧠 thinking, 🛠️ reading files, 💻 editing, 🌐 web search)
-- **Session persistence** — Continue conversations across messages using Claude Code's built-in session management
-- **Skill execution** — Run Claude Code skills (`/skill goodmorning`) via Discord slash commands with autocomplete
-- **Fence-aware splitting** — Long responses are split at natural boundaries, never breaking code blocks
-- **Concurrent sessions** — Run multiple Claude Code sessions in parallel (configurable limit)
-- **Security hardened** — No shell injection, secrets stripped from subprocess env, user authorization support
+- **Session persistence** — Continue conversations across messages via `--resume`
+- **Skill execution** — Run Claude Code skills (`/skill goodmorning`) via slash commands with autocomplete
+- **Fence-aware splitting** — Long responses split at natural boundaries, never breaking code blocks
+- **Concurrent sessions** — Run multiple sessions in parallel (configurable limit)
+- **Security hardened** — No shell injection, secrets stripped from subprocess env, user authorization
 
 ## How It Works
 
@@ -28,16 +65,16 @@ You (Discord)  →  claude-discord  →  Claude Code CLI
 4. Claude's response is posted back to the thread
 5. Reply in the thread to continue the conversation
 
-**Key design decision**: We spawn `claude -p --output-format stream-json` as a subprocess, not the Anthropic API directly. This gives you all Claude Code features for free — CLAUDE.md project context, skills, tools, memory, and MCP servers.
+## Quick Start
 
-## Requirements
+### Requirements
 
 - Python 3.10+
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
 - A Discord bot token with Message Content intent enabled
 - [uv](https://docs.astral.sh/uv/) (recommended) or pip
 
-## Quick Start
+### Run standalone
 
 ```bash
 git clone https://github.com/ebibibi/claude-discord.git
@@ -49,19 +86,9 @@ cp .env.example .env
 uv run python -m claude_discord.main
 ```
 
-## Installation
+### Install as a package
 
-### Standalone
-
-Run as its own bot process:
-
-```bash
-uv run python -m claude_discord.main
-```
-
-### Package install (recommended)
-
-Install into your existing discord.py bot and import the Cog. This is the recommended approach if you already have a bot running, since Discord allows only one Gateway connection per token:
+If you already have a discord.py bot running (Discord allows only one Gateway connection per token):
 
 ```bash
 uv add git+https://github.com/ebibibi/claude-discord.git
@@ -114,8 +141,6 @@ uv lock --upgrade-package claude-discord && uv sync
 
 ## Architecture
 
-This project is a **framework** (installable Python package) — not a ready-made bot for a specific server.
-
 ```
 claude_discord/
   main.py                  # Standalone entry point
@@ -141,18 +166,20 @@ claude_discord/
 
 ### Design Philosophy
 
-- **No custom AI logic** — Claude Code handles all reasoning, tool use, and context management
-- **No memory system** — Claude Code's built-in session management + CLAUDE.md handle memory
+- **No custom AI logic** — Claude Code handles all reasoning, tool use, and context
+- **No memory system** — Claude Code's built-in sessions + CLAUDE.md handle memory
 - **No tool definitions** — Claude Code has its own comprehensive tool set
+- **No plugin system** — Add capabilities by configuring Claude Code, not this bot
 - **Framework's job is purely UI** — Accept messages, show status, deliver responses
 
 ### Security
 
 - `asyncio.create_subprocess_exec` (not shell) prevents command injection
-- Session IDs are validated with a strict regex before use
-- `--` separator prevents prompts starting with `-` from being interpreted as flags
-- Discord bot token and other secrets are stripped from the subprocess environment
-- `allowed_user_ids` parameter restricts who can invoke Claude
+- Session IDs validated with strict regex before use
+- `--` separator prevents prompt injection via flag interpretation
+- Bot token and secrets stripped from the subprocess environment
+- `allowed_user_ids` restricts who can invoke Claude
+- Simple codebase (~800 LOC) — easy to audit yourself
 
 ## Testing
 
