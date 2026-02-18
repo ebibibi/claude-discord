@@ -53,6 +53,16 @@ class TestBuildArgs:
         assert "--allowedTools" in args
         assert "Bash,Read" in args
 
+    def test_dangerously_skip_permissions(self) -> None:
+        runner = ClaudeRunner(dangerously_skip_permissions=True)
+        args = runner._build_args("hello", session_id=None)
+        assert "--dangerously-skip-permissions" in args
+
+    def test_no_dangerously_skip_by_default(self) -> None:
+        runner = ClaudeRunner()
+        args = runner._build_args("hello", session_id=None)
+        assert "--dangerously-skip-permissions" not in args
+
 
 class TestBuildEnv:
     """Tests for _build_env method."""
@@ -101,6 +111,7 @@ class TestClone:
             working_dir="/tmp",
             timeout_seconds=120,
             allowed_tools=["Bash", "Read"],
+            dangerously_skip_permissions=True,
         )
         cloned = runner.clone()
         assert cloned.command == runner.command
@@ -109,4 +120,5 @@ class TestClone:
         assert cloned.working_dir == runner.working_dir
         assert cloned.timeout_seconds == runner.timeout_seconds
         assert cloned.allowed_tools == runner.allowed_tools
+        assert cloned.dangerously_skip_permissions == runner.dangerously_skip_permissions
         assert cloned._process is None

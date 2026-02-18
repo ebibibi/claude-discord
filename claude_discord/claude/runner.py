@@ -32,6 +32,7 @@ class ClaudeRunner:
         working_dir: str | None = None,
         timeout_seconds: int = 300,
         allowed_tools: list[str] | None = None,
+        dangerously_skip_permissions: bool = False,
     ) -> None:
         self.command = command
         self.model = model
@@ -39,6 +40,7 @@ class ClaudeRunner:
         self.working_dir = working_dir
         self.timeout_seconds = timeout_seconds
         self.allowed_tools = allowed_tools
+        self.dangerously_skip_permissions = dangerously_skip_permissions
         self._process: asyncio.subprocess.Process | None = None
 
     async def run(
@@ -96,6 +98,7 @@ class ClaudeRunner:
             working_dir=self.working_dir,
             timeout_seconds=self.timeout_seconds,
             allowed_tools=self.allowed_tools,
+            dangerously_skip_permissions=self.dangerously_skip_permissions,
         )
 
     async def kill(self) -> None:
@@ -122,6 +125,9 @@ class ClaudeRunner:
             "--permission-mode", self.permission_mode,
             "--verbose",
         ]
+
+        if self.dangerously_skip_permissions:
+            args.append("--dangerously-skip-permissions")
 
         if self.allowed_tools:
             args.extend(["--allowedTools", ",".join(self.allowed_tools)])
