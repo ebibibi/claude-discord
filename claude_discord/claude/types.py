@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import discord
 
 
 class MessageType(Enum):
@@ -94,7 +97,6 @@ class ToolUseEvent:
 class StreamEvent:
     """A parsed event from the Claude Code stream-json output."""
 
-    raw: dict[str, Any]
     message_type: MessageType
     session_id: str | None = None
     text: str | None = None
@@ -108,11 +110,13 @@ class StreamEvent:
 
 @dataclass
 class SessionState:
-    """Tracks the state of a Claude Code session."""
+    """Tracks the state of a Claude Code session during a single run.
+
+    active_tools maps tool_use_id -> Discord Message, enabling Phase 2
+    live embed updates when tool results arrive.
+    """
 
     session_id: str | None = None
     thread_id: int = 0
-    is_running: bool = False
     accumulated_text: str = ""
-    active_tools: dict[str, ToolUseEvent] = field(default_factory=dict)
-    cost_usd: float = 0.0
+    active_tools: dict[str, "discord.Message"] = field(default_factory=dict)

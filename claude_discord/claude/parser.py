@@ -43,7 +43,7 @@ def parse_line(line: str) -> StreamEvent | None:
         logger.debug("Unknown message type: %s", msg_type_str)
         return None
 
-    event = StreamEvent(raw=data, message_type=msg_type)
+    event = StreamEvent(message_type=msg_type)
 
     if msg_type == MessageType.SYSTEM:
         _parse_system(data, event)

@@ -64,12 +64,3 @@ class TestSessionRepository:
         deleted = await repo.cleanup_old(days=0)
         assert deleted == 1
 
-    async def test_update_last_used(self, repo):
-        await repo.save(thread_id=500, session_id="sess-5")
-        record_before = await repo.get(500)
-
-        await repo.update_last_used(500)
-        record_after = await repo.get(500)
-
-        # last_used_at should be updated (or at least not None)
-        assert record_after.last_used_at is not None

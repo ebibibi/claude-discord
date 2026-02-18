@@ -30,12 +30,14 @@ class ClaudeRunner:
         permission_mode: str = "acceptEdits",
         working_dir: str | None = None,
         timeout_seconds: int = 300,
+        allowed_tools: list[str] | None = None,
     ) -> None:
         self.command = command
         self.model = model
         self.permission_mode = permission_mode
         self.working_dir = working_dir
         self.timeout_seconds = timeout_seconds
+        self.allowed_tools = allowed_tools
         self._process: asyncio.subprocess.Process | None = None
 
     async def run(
@@ -84,14 +86,25 @@ class ClaudeRunner:
         finally:
             await self._cleanup()
 
+    def clone(self) -> "ClaudeRunner":
+        """Create a fresh runner with the same configuration but no active process."""
+        return ClaudeRunner(
+            command=self.command,
+            model=self.model,
+            permission_mode=self.permission_mode,
+            working_dir=self.working_dir,
+            timeout_seconds=self.timeout_seconds,
+        )
+
     async def kill(self) -> None:
-        """Kill the running subprocess."""
+        """Terminate the subprocess, force-killing if it doesn't stop in time."""
         if self._process and self._process.returncode is None:
             self._process.terminate()
             try:
                 await asyncio.wait_for(self._process.wait(), timeout=5)
             except asyncio.TimeoutError:
                 self._process.kill()
+                await self._process.wait()
 
     def _build_args(self, prompt: str, session_id: str | None) -> list[str]:
         """Build command-line arguments for claude CLI.
@@ -108,6 +121,9 @@ class ClaudeRunner:
             "--verbose",
         ]
 
+        if self.allowed_tools:
+            args.extend(["--allowedTools", ",".join(self.allowed_tools)])
+
         if session_id:
             args.extend(["--resume", session_id])
 
@@ -123,8 +139,8 @@ class ClaudeRunner:
 
     async def _read_stream(self) -> AsyncGenerator[StreamEvent, None]:
         """Read and parse stdout line by line."""
-        assert self._process is not None
-        assert self._process.stdout is not None
+        if self._process is None or self._process.stdout is None:
+            raise RuntimeError("Process not started")
 
         while True:
             line = await self._process.stdout.readline()
@@ -159,11 +175,5 @@ class ClaudeRunner:
             )
 
     async def _cleanup(self) -> None:
-        """Ensure the subprocess is properly terminated."""
-        if self._process and self._process.returncode is None:
-            try:
-                self._process.terminate()
-                await asyncio.wait_for(self._process.wait(), timeout=5)
-            except asyncio.TimeoutError:
-                self._process.kill()
-                await self._process.wait()
+        """Ensure the subprocess is properly terminated after run() exits."""
+        await self.kill()

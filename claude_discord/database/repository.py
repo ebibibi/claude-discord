@@ -62,17 +62,9 @@ class SessionRepository:
             await db.commit()
 
         record = await self.get(thread_id)
-        assert record is not None
+        if record is None:
+            raise RuntimeError(f"Failed to retrieve session after save for thread {thread_id}")
         return record
-
-    async def update_last_used(self, thread_id: int) -> None:
-        """Update the last_used_at timestamp."""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
-                "UPDATE sessions SET last_used_at = datetime('now', 'localtime') WHERE thread_id = ?",
-                (thread_id,),
-            )
-            await db.commit()
 
     async def delete(self, thread_id: int) -> bool:
         """Delete a session mapping. Returns True if a row was deleted."""

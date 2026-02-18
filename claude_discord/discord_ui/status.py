@@ -54,7 +54,7 @@ class StatusManager:
         self._debounce_task: asyncio.Task | None = None
         self._stall_task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
-        self._last_activity = asyncio.get_event_loop().time()
+        self._last_activity = asyncio.get_running_loop().time()
 
     async def set_thinking(self) -> None:
         """Set status to thinking."""
@@ -133,12 +133,12 @@ class StatusManager:
     def _start_stall_timer(self) -> None:
         """Start the stall detection timer."""
         self._cancel_stall_timer()
-        self._last_activity = asyncio.get_event_loop().time()
+        self._last_activity = asyncio.get_running_loop().time()
         self._stall_task = asyncio.create_task(self._stall_monitor())
 
     def _reset_stall_timer(self) -> None:
         """Reset the stall timer (activity detected)."""
-        self._last_activity = asyncio.get_event_loop().time()
+        self._last_activity = asyncio.get_running_loop().time()
 
     def _cancel_stall_timer(self) -> None:
         """Cancel the stall timer."""
@@ -150,7 +150,7 @@ class StatusManager:
         soft_warned = False
         while True:
             await asyncio.sleep(2)
-            elapsed = asyncio.get_event_loop().time() - self._last_activity
+            elapsed = asyncio.get_running_loop().time() - self._last_activity
 
             if elapsed >= STALL_HARD_SECONDS and self._current_emoji != EMOJI_STALL_HARD:
                 await self._set_status(EMOJI_STALL_HARD)

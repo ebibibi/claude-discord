@@ -19,7 +19,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from ..claude.runner import ClaudeRunner
-from ..claude.types import MessageType, ToolCategory
+from ..claude.types import MessageType, SessionState
 from ..database.repository import SessionRepository
 from ..discord_ui.chunker import chunk_message
 from ..discord_ui.embeds import (
@@ -49,6 +49,7 @@ class ClaudeChatCog(commands.Cog):
         self.bot = bot
         self.repo = repo
         self.runner = runner
+        self._max_concurrent = max_concurrent
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._active_runners: dict[int, ClaudeRunner] = {}
 
@@ -121,58 +122,47 @@ class ClaudeChatCog(commands.Cog):
         session_id: str | None,
     ) -> None:
         """Execute Claude Code CLI and stream results to the thread."""
-        if not self._semaphore._value:  # noqa: SLF001
+        if self._semaphore.locked():
             await thread.send(
-                "\u23f3 Waiting for a free session slot... "
-                f"({self._semaphore._bound_value} sessions running)"  # noqa: SLF001
+                f"\u23f3 Waiting for a free session slot... "
+                f"({self._max_concurrent} max sessions running)"
             )
 
         async with self._semaphore:
             status = StatusManager(user_message)
             await status.set_thinking()
 
-            # Create a runner for this session
-            runner = ClaudeRunner(
-                command=self.runner.command,
-                model=self.runner.model,
-                permission_mode=self.runner.permission_mode,
-                working_dir=self.runner.working_dir,
-                timeout_seconds=self.runner.timeout_seconds,
-            )
+            # Create a fresh runner for this session (clone shares config, not process state)
+            runner = self.runner.clone()
             self._active_runners[thread.id] = runner
 
-            accumulated_text = ""
-            final_session_id = session_id
-            tool_messages: dict[str, discord.Message] = {}
+            state = SessionState(session_id=session_id, thread_id=thread.id)
 
             try:
                 async for event in runner.run(prompt, session_id=session_id):
                     # System message: capture session_id
                     if event.message_type == MessageType.SYSTEM and event.session_id:
-                        final_session_id = event.session_id
+                        state.session_id = event.session_id
                         # Save session mapping
-                        await self.repo.save(thread.id, final_session_id)
+                        await self.repo.save(thread.id, state.session_id)
                         if not session_id:
                             # First message - show session start
-                            await thread.send(embed=session_start_embed(final_session_id))
+                            await thread.send(embed=session_start_embed(state.session_id))
 
                     # Assistant message: text or tool use
                     if event.message_type == MessageType.ASSISTANT:
                         if event.text:
-                            accumulated_text = event.text
+                            state.accumulated_text = event.text
 
                         if event.tool_use:
                             await status.set_tool(event.tool_use.category)
                             embed = tool_use_embed(event.tool_use, in_progress=True)
                             msg = await thread.send(embed=embed)
-                            tool_messages[event.tool_use.tool_id] = msg
+                            state.active_tools[event.tool_use.tool_id] = msg
 
                     # User message (tool result): update tool embed
+                    # TODO(Phase 2): edit state.active_tools[event.tool_result_id] embed to "done" state
                     if event.message_type == MessageType.USER and event.tool_result_id:
-                        if event.tool_result_id in tool_messages:
-                            # Tool completed - we could update the embed here
-                            # For now just leave it as-is (Phase 2 will add live updates)
-                            pass
                         await status.set_thinking()
 
                     # Result: session complete
@@ -182,7 +172,7 @@ class ClaudeChatCog(commands.Cog):
                             await status.set_error()
                         else:
                             # Post the final text response
-                            response_text = event.text or accumulated_text
+                            response_text = event.text or state.accumulated_text
                             if response_text:
                                 chunks = chunk_message(response_text)
                                 for chunk in chunks:
@@ -205,7 +195,3 @@ class ClaudeChatCog(commands.Cog):
                 self._active_runners.pop(thread.id, None)
 
 
-async def setup(bot: ClaudeDiscordBot) -> None:
-    """Set up the cog (called by bot.load_extension)."""
-    # This is a placeholder - actual setup happens in main.py
-    pass
