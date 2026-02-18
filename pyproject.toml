@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "claude-discord"
+name = "discord-claude-code-bridge"
 version = "0.1.0"
 description = "Discord frontend for Claude Code CLI - chat with Claude Code via Discord threads"
 readme = "README.md"
@@ -14,6 +14,9 @@ dependencies = [
     "aiosqlite>=0.20,<1.0",
     "python-dotenv>=1.0,<2.0",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["claude_discord"]
 
 [dependency-groups]
 dev = [

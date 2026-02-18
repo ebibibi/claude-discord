@@ -1,10 +1,12 @@
-# claude-discord
+# discord-claude-code-bridge
 
-[![CI](https://github.com/ebibibi/claude-discord/actions/workflows/ci.yml/badge.svg)](https://github.com/ebibibi/claude-discord/actions/workflows/ci.yml)
+[![CI](https://github.com/ebibibi/discord-claude-code-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/ebibibi/discord-claude-code-bridge/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Use Claude Code from your phone. A thin Discord frontend that gives you **full Claude Code CLI access** through Discord threads — designed for mobile development when you're away from your terminal.
+Use [Claude Code](https://docs.anthropic.com/en/docs/claude-code) from your phone. A thin Discord frontend that gives you **full Claude Code CLI access** through Discord threads — designed for mobile development when you're away from your terminal.
+
+> **Disclaimer:** This project is not affiliated with, endorsed by, or officially connected to Anthropic. "Claude" and "Claude Code" are trademarks of Anthropic, PBC. This is an independent open-source tool that interfaces with the Claude Code CLI.
 
 > **Built entirely by Claude Code.** This project was designed, implemented, tested, and documented by Claude Code itself — the AI coding agent from Anthropic. The human author has not read the source code. See [How This Project Was Built](#how-this-project-was-built) for details.
 
@@ -25,13 +27,13 @@ I run 3-4 projects in parallel with Claude Code. On my phone via [Termux](https:
 
 **This is not:** A feature-rich Discord bot, an AI chatbot framework, or a replacement for the Claude Code terminal experience. There's no custom AI logic, no plugin system, no admin dashboard.
 
-**Your Claude Code environment does the heavy lifting.** Your CLAUDE.md, skills, tools, memory, MCP servers — they all work exactly as they do in the terminal. claude-discord just provides the UI layer.
+**Your Claude Code environment does the heavy lifting.** Your CLAUDE.md, skills, tools, memory, MCP servers — they all work exactly as they do in the terminal. This bridge just provides the UI layer.
 
 **Security model:** Run it on your own private Discord server, in a channel only you can access. The bot is intentionally simple — fewer features means fewer attack surfaces. You built it yourself, you can read every line of code, and there's nothing phoning home.
 
 ## How It Compares
 
-| | claude-discord | [OpenClaw](https://github.com/openclaw/openclaw) & similar |
+| | discord-claude-code-bridge | [OpenClaw](https://github.com/openclaw/openclaw) & similar |
 |---|---|---|
 | **Focus** | Mobile-first Claude Code access | Full-featured Discord AI bot |
 | **AI backend** | Claude Code CLI (subprocess) | Direct API calls |
@@ -58,7 +60,7 @@ I run 3-4 projects in parallel with Claude Code. On my phone via [Termux](https:
 ## How It Works
 
 ```
-You (Discord)  →  claude-discord  →  Claude Code CLI
+You (Discord)  →  Bridge  →  Claude Code CLI
     ↑                                      ↓
     ←──────── stream-json output ──────────←
 ```
@@ -81,8 +83,8 @@ You (Discord)  →  claude-discord  →  Claude Code CLI
 ### Run standalone
 
 ```bash
-git clone https://github.com/ebibibi/claude-discord.git
-cd claude-discord
+git clone https://github.com/ebibibi/discord-claude-code-bridge.git
+cd discord-claude-code-bridge
 
 cp .env.example .env
 # Edit .env with your bot token and channel ID
@@ -95,7 +97,7 @@ uv run python -m claude_discord.main
 If you already have a discord.py bot running (Discord allows only one Gateway connection per token):
 
 ```bash
-uv add git+https://github.com/ebibibi/claude-discord.git
+uv add git+https://github.com/ebibibi/discord-claude-code-bridge.git
 ```
 
 ```python
@@ -114,7 +116,7 @@ await bot.add_cog(ClaudeChatCog(bot, repo, runner))
 Update to the latest version:
 
 ```bash
-uv lock --upgrade-package claude-discord && uv sync
+uv lock --upgrade-package discord-claude-code-bridge && uv sync
 ```
 
 ## Configuration

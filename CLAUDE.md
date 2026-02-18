@@ -1,10 +1,10 @@
-# claude-discord
+# discord-claude-code-bridge
 
 Discord frontend for Claude Code CLI. **This is a framework (OSS library), not a personal bot.**
 
 ## Framework vs Instance
 
-- **claude-discord** (this repo) = reusable OSS framework. No personal config, no secrets, no server-specific logic.
+- **discord-claude-code-bridge** (this repo) = reusable OSS framework. No personal config, no secrets, no server-specific logic.
 - Personal instances (e.g. EbiBot) install this as a package and import the Cog. The instance repo handles server-specific config, additional Cogs, and secrets.
 - When adding features: if it's useful to anyone → add here. If it's personal workflow → add in the instance repo.
 
@@ -29,8 +29,8 @@ Discord frontend for Claude Code CLI. **This is a framework (OSS library), not a
 ### Setup
 
 ```bash
-git clone https://github.com/ebibibi/claude-discord.git
-cd claude-discord
+git clone https://github.com/ebibibi/discord-claude-code-bridge.git
+cd discord-claude-code-bridge
 uv sync --dev
 ```
 
