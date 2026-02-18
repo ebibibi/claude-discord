@@ -185,10 +185,10 @@ class SkillCommandCog(commands.Cog):
         await interaction.response.defer()
 
         # In-thread mode: if invoked inside a thread under the claude channel, resume it
-        if self._is_claude_thread(interaction.channel):
-            thread = interaction.channel
+        channel = interaction.channel
+        if isinstance(channel, discord.Thread) and self._is_claude_thread(channel):
             session_id = None
-            record = await self.repo.get(thread.id)
+            record = await self.repo.get(channel.id)
             if record:
                 session_id = record.session_id
 
@@ -197,7 +197,7 @@ class SkillCommandCog(commands.Cog):
 
             runner = self.runner.clone()
             await run_claude_in_thread(
-                thread=thread,
+                thread=channel,
                 runner=runner,
                 repo=self.repo,
                 prompt=prompt,

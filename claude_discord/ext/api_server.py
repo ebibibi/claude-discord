@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -78,7 +79,7 @@ class ApiServer:
     async def _auth_middleware(
         self,
         request: web.Request,
-        handler: web.RequestHandler,
+        handler: Callable[[web.Request], Awaitable[web.StreamResponse]],
     ) -> web.StreamResponse:
         """Bearer token authentication middleware."""
         if request.path == "/api/health":
@@ -131,16 +132,19 @@ class ApiServer:
         if not channel_id:
             return web.json_response({"error": "No channel specified"}, status=400)
 
-        channel = self.bot.get_channel(channel_id)
-        if not channel:
+        raw_channel = self.bot.get_channel(channel_id)
+        if not raw_channel:
             try:
-                channel = await self.bot.fetch_channel(channel_id)
+                raw_channel = await self.bot.fetch_channel(channel_id)
             except Exception as e:
                 return web.json_response({"error": str(e)}, status=500)
 
+        if not hasattr(raw_channel, "send"):
+            return web.json_response({"error": "Channel is not messageable"}, status=400)
+
         title = data.get("title")
         embed = self._build_embed(message=message, title=title, color=data.get("color"))
-        await channel.send(embed=embed)
+        await raw_channel.send(embed=embed)  # type: ignore[union-attr]
 
         return web.json_response({"status": "sent"})
 

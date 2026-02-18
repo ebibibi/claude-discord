@@ -35,5 +35,8 @@ jobs:
       - name: Format check
         run: uv run ruff format --check claude_discord/
 
+      - name: Type check
+        run: uv run pyright claude_discord/
+
       - name: Test
         run: uv run pytest tests/ -v --cov=claude_discord --cov-report=term-missing

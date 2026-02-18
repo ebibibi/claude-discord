@@ -28,6 +28,7 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.4",
     "aiohttp>=3.9",
+    "pyright>=1.1.408",
 ]
 
 [tool.pytest.ini_options]
@@ -37,6 +38,10 @@ testpaths = ["tests"]
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "A", "SIM"]
