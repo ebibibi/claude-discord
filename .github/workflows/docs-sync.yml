@@ -1,0 +1,21 @@
+name: Documentation Sync
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  trigger-docs-sync:
+    # Skip if the commit is from docs-sync itself (infinite loop prevention)
+    if: "!contains(github.event.head_commit.message, '[docs-sync]')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger docs-sync via Discord webhook
+        env:
+          WEBHOOK_URL: ${{ secrets.DOCS_SYNC_WEBHOOK_URL }}
+        run: |
+          # Send a fixed trigger message — no dynamic content, no injection risk
+          curl -s -o /dev/null -w "%{http_code}" \
+            -H "Content-Type: application/json" \
+            -d '{"content":"🔄 docs-sync"}' \
+            "$WEBHOOK_URL"
