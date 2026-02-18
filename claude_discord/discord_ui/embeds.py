@@ -90,17 +90,22 @@ def tool_result_embed(tool_title: str, result_content: str) -> discord.Embed:
 def thinking_embed(thinking_text: str) -> discord.Embed:
     """Create an embed for extended thinking content.
 
-    Wraps the text in a spoiler + code block so the revealed content is always
-    readable regardless of Discord theme (dark/light) or embed accent color.
+    Uses a plain code block (no spoiler) so the text is always rendered with
+    Discord's own code block background/foreground — guaranteed readable in
+    both dark and light themes regardless of the embed accent color.
+
+    Note: spoiler + code block combinations (||```text```||) do not apply code
+    block styling when revealed inside embed descriptions; the text still picks
+    up the embed accent color and can become unreadable.
     """
-    # Reserve chars for spoiler + code block markers: ||```\n...\n```|| = 14 chars overhead
-    max_text = 4096 - 14 - len("\n... (truncated)")
+    # Reserve chars for code block markers: ```\n...\n``` = 8 chars overhead
+    max_text = 4096 - 8 - len("\n... (truncated)")
     truncated = thinking_text[:max_text]
     if len(thinking_text) > max_text:
         truncated += "\n... (truncated)"
     return discord.Embed(
         title="\U0001f4ad Thinking",
-        description=f"||```\n{truncated}\n```||",
+        description=f"```\n{truncated}\n```",
         color=COLOR_THINKING,
     )
 

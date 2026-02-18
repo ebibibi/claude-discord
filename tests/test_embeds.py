@@ -6,12 +6,18 @@ from claude_discord.discord_ui.embeds import thinking_embed
 
 
 class TestThinkingEmbed:
-    def test_description_uses_spoiler_and_code_block(self) -> None:
-        """Thinking embed must use spoiler+code block for readability across all Discord themes."""
+    def test_description_uses_plain_code_block(self) -> None:
+        """Thinking embed must use a plain code block (no spoiler) for guaranteed readability.
+
+        spoiler+code block (||```text```||) does not apply code block styling
+        when revealed inside Discord embed descriptions — the embed accent color
+        bleeds into the revealed text, making it unreadable.
+        """
         embed = thinking_embed("Let me think about this.")
         assert embed.description is not None
-        assert embed.description.startswith("||```\n")
-        assert embed.description.endswith("\n```||")
+        assert embed.description.startswith("```\n")
+        assert embed.description.endswith("\n```")
+        assert "||" not in embed.description
 
     def test_thinking_text_preserved(self) -> None:
         """Original thinking text should appear inside the code block."""
