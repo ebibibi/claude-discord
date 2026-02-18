@@ -4,8 +4,8 @@ import pytest
 import tempfile
 import os
 
-from src.database.models import init_db
-from src.database.repository import SessionRepository
+from claude_discord.database.models import init_db
+from claude_discord.database.repository import SessionRepository
 
 
 @pytest.fixture

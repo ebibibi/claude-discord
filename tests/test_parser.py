@@ -2,8 +2,8 @@
 
 import pytest
 
-from src.claude.parser import parse_line
-from src.claude.types import MessageType, ToolCategory
+from claude_discord.claude.parser import parse_line
+from claude_discord.claude.types import MessageType, ToolCategory
 
 
 class TestParseLine:
