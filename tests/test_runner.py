@@ -63,6 +63,16 @@ class TestBuildArgs:
         args = runner._build_args("hello", session_id=None)
         assert "--dangerously-skip-permissions" not in args
 
+    def test_include_partial_messages_default(self) -> None:
+        runner = ClaudeRunner()
+        args = runner._build_args("hello", session_id=None)
+        assert "--include-partial-messages" in args
+
+    def test_include_partial_messages_disabled(self) -> None:
+        runner = ClaudeRunner(include_partial_messages=False)
+        args = runner._build_args("hello", session_id=None)
+        assert "--include-partial-messages" not in args
+
 
 class TestBuildEnv:
     """Tests for _build_env method."""
@@ -112,6 +122,7 @@ class TestClone:
             timeout_seconds=120,
             allowed_tools=["Bash", "Read"],
             dangerously_skip_permissions=True,
+            include_partial_messages=False,
         )
         cloned = runner.clone()
         assert cloned.command == runner.command
@@ -121,4 +132,5 @@ class TestClone:
         assert cloned.timeout_seconds == runner.timeout_seconds
         assert cloned.allowed_tools == runner.allowed_tools
         assert cloned.dangerously_skip_permissions == runner.dangerously_skip_permissions
+        assert cloned.include_partial_messages == runner.include_partial_messages
         assert cloned._process is None

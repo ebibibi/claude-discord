@@ -1,8 +1,6 @@
 """Tests for fence-aware message chunker."""
 
-import pytest
-
-from claude_discord.discord_ui.chunker import chunk_message, _close_open_fence
+from claude_discord.discord_ui.chunker import _close_open_fence, chunk_message
 
 
 class TestChunkMessage:

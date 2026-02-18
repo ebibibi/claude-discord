@@ -33,6 +33,7 @@ class ClaudeRunner:
         timeout_seconds: int = 300,
         allowed_tools: list[str] | None = None,
         dangerously_skip_permissions: bool = False,
+        include_partial_messages: bool = True,
     ) -> None:
         self.command = command
         self.model = model
@@ -41,6 +42,7 @@ class ClaudeRunner:
         self.timeout_seconds = timeout_seconds
         self.allowed_tools = allowed_tools
         self.dangerously_skip_permissions = dangerously_skip_permissions
+        self.include_partial_messages = include_partial_messages
         self._process: asyncio.subprocess.Process | None = None
 
     async def run(
@@ -99,6 +101,7 @@ class ClaudeRunner:
             timeout_seconds=self.timeout_seconds,
             allowed_tools=self.allowed_tools,
             dangerously_skip_permissions=self.dangerously_skip_permissions,
+            include_partial_messages=self.include_partial_messages,
         )
 
     async def kill(self) -> None:
@@ -128,6 +131,9 @@ class ClaudeRunner:
             self.permission_mode,
             "--verbose",
         ]
+
+        if self.include_partial_messages:
+            args.append("--include-partial-messages")
 
         if self.dangerously_skip_permissions:
             args.append("--dangerously-skip-permissions")

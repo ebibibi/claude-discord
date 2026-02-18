@@ -1,7 +1,5 @@
 """Tests for stream-json parser."""
 
-import pytest
-
 from claude_discord.claude.parser import parse_line
 from claude_discord.claude.types import MessageType, ToolCategory
 
@@ -88,6 +86,79 @@ class TestParseLine:
         assert event is not None
         assert event.is_complete is True
         assert event.error == "Something broke"
+
+
+class TestToolResultContent:
+    def test_tool_result_string_content(self):
+        line = (
+            '{"type": "user", "message": {"content": '
+            '[{"type": "tool_result", "tool_use_id": "tool-1", '
+            '"content": "file contents here"}]}}'
+        )
+        event = parse_line(line)
+        assert event is not None
+        assert event.tool_result_id == "tool-1"
+        assert event.tool_result_content == "file contents here"
+
+    def test_tool_result_list_content(self):
+        line = (
+            '{"type": "user", "message": {"content": '
+            '[{"type": "tool_result", "tool_use_id": "tool-1", '
+            '"content": [{"type": "text", "text": "line 1"}, '
+            '{"type": "text", "text": "line 2"}]}]}}'
+        )
+        event = parse_line(line)
+        assert event is not None
+        assert event.tool_result_content == "line 1\nline 2"
+
+    def test_tool_result_empty_content(self):
+        line = (
+            '{"type": "user", "message": {"content": '
+            '[{"type": "tool_result", "tool_use_id": "tool-1", '
+            '"content": ""}]}}'
+        )
+        event = parse_line(line)
+        assert event is not None
+        assert event.tool_result_content is None
+
+    def test_tool_result_no_content_field(self):
+        line = (
+            '{"type": "user", "message": {"content": '
+            '[{"type": "tool_result", "tool_use_id": "tool-1"}]}}'
+        )
+        event = parse_line(line)
+        assert event is not None
+        assert event.tool_result_content is None
+
+
+class TestThinkingContent:
+    def test_assistant_thinking_block(self):
+        line = (
+            '{"type": "assistant", "message": {"content": '
+            '[{"type": "thinking", "thinking": "Let me analyze this problem..."}]}}'
+        )
+        event = parse_line(line)
+        assert event is not None
+        assert event.thinking == "Let me analyze this problem..."
+
+    def test_assistant_thinking_and_text(self):
+        line = (
+            '{"type": "assistant", "message": {"content": '
+            '[{"type": "thinking", "thinking": "Hmm..."}, '
+            '{"type": "text", "text": "Here is my answer."}]}}'
+        )
+        event = parse_line(line)
+        assert event is not None
+        assert event.thinking == "Hmm..."
+        assert event.text == "Here is my answer."
+
+    def test_empty_thinking_ignored(self):
+        line = (
+            '{"type": "assistant", "message": {"content": [{"type": "thinking", "thinking": ""}]}}'
+        )
+        event = parse_line(line)
+        assert event is not None
+        assert event.thinking is None
 
 
 class TestToolDisplayNames:

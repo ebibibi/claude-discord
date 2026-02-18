@@ -66,11 +66,12 @@ def _parse_system(data: dict[str, Any], event: StreamEvent) -> None:
 
 
 def _parse_assistant(data: dict[str, Any], event: StreamEvent) -> None:
-    """Parse assistant message (text blocks and tool_use blocks)."""
+    """Parse assistant message (text blocks, tool_use blocks, and thinking blocks)."""
     message = data.get("message", {})
     content = message.get("content", [])
 
     text_parts: list[str] = []
+    thinking_parts: list[str] = []
     for block in content:
         block_type = block.get("type", "")
 
@@ -89,18 +90,37 @@ def _parse_assistant(data: dict[str, Any], event: StreamEvent) -> None:
                 category=category,
             )
 
+        elif block_type == ContentBlockType.THINKING.value:
+            thinking_text = block.get("thinking", "")
+            if thinking_text:
+                thinking_parts.append(thinking_text)
+
     if text_parts:
         event.text = "\n".join(text_parts)
+    if thinking_parts:
+        event.thinking = "\n".join(thinking_parts)
 
 
 def _parse_user(data: dict[str, Any], event: StreamEvent) -> None:
-    """Parse user message (tool_result blocks)."""
+    """Parse user message (tool_result blocks with content)."""
     message = data.get("message", {})
     content = message.get("content", [])
 
     for block in content:
         if block.get("type") == ContentBlockType.TOOL_RESULT.value:
             event.tool_result_id = block.get("tool_use_id", "")
+            # Extract tool result content
+            result_content = block.get("content", "")
+            if isinstance(result_content, str) and result_content:
+                event.tool_result_content = result_content
+            elif isinstance(result_content, list):
+                # Content can be a list of blocks (e.g. [{type: "text", text: "..."}])
+                text_parts = []
+                for part in result_content:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        text_parts.append(part.get("text", ""))
+                if text_parts:
+                    event.tool_result_content = "\n".join(text_parts)
             break
 
 

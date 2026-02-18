@@ -69,6 +69,37 @@ def session_complete_embed(
     )
 
 
+def tool_result_embed(tool_title: str, result_content: str) -> discord.Embed:
+    """Create an embed for a completed tool with its result.
+
+    Replaces the in-progress tool embed once the result is available.
+    """
+    # Strip the trailing "..." from in-progress title
+    title = tool_title.rstrip(".")
+    embed = discord.Embed(
+        title=title[:256],
+        color=COLOR_INFO,
+    )
+    if result_content:
+        # Use a spoiler-style collapsible look via a field
+        display = result_content[:1024]
+        embed.add_field(name="Result", value=f"```\n{display}\n```", inline=False)
+    return embed
+
+
+def thinking_embed(thinking_text: str) -> discord.Embed:
+    """Create an embed for extended thinking content."""
+    # Truncate to fit Discord embed description limit (4096 chars)
+    truncated = thinking_text[:3900]
+    if len(thinking_text) > 3900:
+        truncated += "\n... (truncated)"
+    return discord.Embed(
+        title="\U0001f4ad Thinking",
+        description=f"||{truncated}||",
+        color=COLOR_THINKING,
+    )
+
+
 def error_embed(error: str) -> discord.Embed:
     """Create an embed for errors."""
     return discord.Embed(

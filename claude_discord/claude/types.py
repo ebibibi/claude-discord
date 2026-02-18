@@ -25,6 +25,7 @@ class ContentBlockType(Enum):
     TEXT = "text"
     TOOL_USE = "tool_use"
     TOOL_RESULT = "tool_result"
+    THINKING = "thinking"
 
 
 class ToolCategory(Enum):
@@ -102,6 +103,8 @@ class StreamEvent:
     text: str | None = None
     tool_use: ToolUseEvent | None = None
     tool_result_id: str | None = None
+    tool_result_content: str | None = None
+    thinking: str | None = None
     is_complete: bool = False
     cost_usd: float | None = None
     duration_ms: int | None = None

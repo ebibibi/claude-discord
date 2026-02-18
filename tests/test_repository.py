@@ -1,8 +1,6 @@
 """Tests for session repository."""
 
 import pytest
-import tempfile
-import os
 
 from claude_discord.database.models import init_db
 from claude_discord.database.repository import SessionRepository
@@ -63,4 +61,3 @@ class TestSessionRepository:
         # Cleanup with 0 days should delete everything
         deleted = await repo.cleanup_old(days=0)
         assert deleted == 1
-
