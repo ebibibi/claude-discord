@@ -109,10 +109,12 @@ class ApiServer:
 
     async def health(self, request: web.Request) -> web.Response:
         """GET /api/health — health check."""
-        return web.json_response({
-            "status": "ok",
-            "timestamp": datetime.now().isoformat(),
-        })
+        return web.json_response(
+            {
+                "status": "ok",
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
     async def notify(self, request: web.Request) -> web.Response:
         """POST /api/notify — send an immediate notification."""

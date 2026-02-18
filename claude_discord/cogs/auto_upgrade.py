@@ -115,7 +115,10 @@ class AutoUpgradeCog(commands.Cog):
         try:
             # Step 1: Upgrade package
             upgrade_cmd = self.config.upgrade_command or [
-                "uv", "lock", "--upgrade-package", self.config.package_name,
+                "uv",
+                "lock",
+                "--upgrade-package",
+                self.config.package_name,
             ]
             ok = await self._run_step(thread, "upgrade", upgrade_cmd)
             if not ok:
