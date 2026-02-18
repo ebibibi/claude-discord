@@ -171,11 +171,12 @@ Project-specific skills that help AI agents work effectively on this codebase:
 
 | Skill | Purpose |
 |-------|---------|
+| `tdd` | **Enforced** test-driven development — write tests FIRST, then implement |
 | `verify` | Pre-commit quality gate (lint + format + test + security) |
 | `add-cog` | Step-by-step guide to scaffold a new Cog |
 | `security-audit` | Security checklist specific to subprocess/injection threats |
 | `python-quality` | Python coding patterns and project conventions |
-| `test-guide` | Testing patterns, TDD workflow, coverage goals |
+| `test-guide` | Testing patterns, mocking Discord objects, coverage goals |
 
 ### Commands (`.claude/commands/`)
 
