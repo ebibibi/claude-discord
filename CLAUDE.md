@@ -1,6 +1,8 @@
-# claude-code-discord-bridge
+# claude-code-discord-bridge (ccdb)
 
 Discord frontend for Claude Code CLI. **This is a framework (OSS library), not a personal bot.**
+
+**略称: ccdb** (claude-code-discord-bridge)
 
 ## Framework vs Instance
 
