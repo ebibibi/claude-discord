@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Pre-commit hook: auto-format and lint staged Python files.
+# Formats with ruff, re-stages the result, then blocks on unfixable lint errors.
+#
+# Setup (one-time per clone):
+#   git config core.hooksPath .githooks
+# Or run:
+#   make setup
+set -e
+
+cd "$(git rev-parse --show-toplevel)"
+
+staged=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$' || true)
+[ -z "$staged" ] && exit 0
+
+echo "pre-commit: ruff format..."
+echo "$staged" | xargs uv run ruff format
+
+echo "pre-commit: ruff check --fix..."
+echo "$staged" | xargs uv run ruff check --fix --exit-zero
+
+# Re-stage any files ruff modified
+echo "$staged" | xargs git add
+
+echo "pre-commit: ruff check (final)..."
+echo "$staged" | xargs uv run ruff check
