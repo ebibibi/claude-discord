@@ -236,7 +236,7 @@ class AutoUpgradeCog(commands.Cog):
                     check=lambda e: (
                         e.message_id == approval_msg.id
                         and str(e.emoji) == "✅"
-                        and e.user_id != self.bot.user.id
+                        and (self.bot.user is None or e.user_id != self.bot.user.id)
                     ),
                     timeout=float(self._drain_timeout),
                 )
@@ -261,6 +261,7 @@ class AutoUpgradeCog(commands.Cog):
         await thread.send("🔄 Restarting...")
         await trigger_message.add_reaction("✅")
         await asyncio.sleep(1)
+        assert self.config.restart_command is not None  # Caller checks this
         await asyncio.create_subprocess_exec(
             *self.config.restart_command,
             stdout=asyncio.subprocess.DEVNULL,
