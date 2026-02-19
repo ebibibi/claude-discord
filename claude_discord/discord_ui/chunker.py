@@ -6,6 +6,9 @@ properly close and reopen the fence markers.
 Tables (GitHub Flavored Markdown pipe-tables) are treated as atomic blocks:
 the chunker walks back from any candidate split point to the start of the
 enclosing table so that Discord can render the whole table in one message.
+When a table is too large to fit in a single message, continuation chunks
+receive the table header+separator prepended so each chunk renders as a
+standalone table.
 """
 
 from __future__ import annotations
@@ -24,6 +27,7 @@ def chunk_message(text: str, max_chars: int = EFFECTIVE_MAX) -> list[str]:
     3. If forced to split inside a fence, close it and reopen in next chunk
     4. Never split inside a markdown table block
     5. Respect max_chars limit per chunk
+    6. If a table must be split, prepend its header to continuation chunks
     """
     if not text:
         return []
@@ -52,7 +56,38 @@ def chunk_message(text: str, max_chars: int = EFFECTIVE_MAX) -> list[str]:
         if fence_lang is not None:
             remaining = f"```{fence_lang}\n{remaining}"
 
-    return [c for c in chunks if c.strip()]
+    raw = [c for c in chunks if c.strip()]
+    return _fix_table_continuations(raw)
+
+
+def _fix_table_continuations(chunks: list[str]) -> list[str]:
+    """Prepend the table header to any chunk that starts mid-table.
+
+    When a large table is split across messages, continuation chunks start
+    with data rows but no header.  Discord requires a header+separator in
+    every message to render the table correctly.  This pass tracks the active
+    table header across chunks and prepends it where needed.
+    """
+    result: list[str] = []
+    current_header: str | None = None
+
+    for chunk in chunks:
+        if current_header and _is_table_continuation_chunk(chunk):
+            chunk = current_header + chunk
+
+        # Update the active header: keep it if this chunk ends mid-table,
+        # clear it if the chunk ends outside a table.
+        if _chunk_ends_in_table(chunk):
+            new_header = _find_chunk_table_header(chunk)
+            if new_header is not None:
+                current_header = new_header
+            # else: keep current_header (shouldn't happen if table is well-formed)
+        else:
+            current_header = None
+
+        result.append(chunk)
+
+    return result
 
 
 def _find_split_point(text: str, max_chars: int) -> int:
@@ -89,6 +124,94 @@ def _is_table_line(line: str) -> bool:
     """
     stripped = line.strip()
     return len(stripped) >= 3 and stripped.startswith("|") and stripped.endswith("|")
+
+
+def _is_separator_row(line: str) -> bool:
+    """Return True if *line* is a GFM table separator row.
+
+    Separator rows contain only pipes, dashes, spaces, and optional colons
+    (for alignment).  Example: ``|---|:---:|---:|``
+    """
+    if not _is_table_line(line):
+        return False
+    inner = line.strip()[1:-1]  # strip outer pipes
+    return all(c in "-: |" for c in inner)
+
+
+def _chunk_ends_in_table(chunk: str) -> bool:
+    """Return True if the last non-blank line of *chunk* is a table line."""
+    for line in reversed(chunk.splitlines()):
+        if line.strip():
+            return _is_table_line(line)
+    return False
+
+
+def _find_chunk_table_header(chunk: str) -> str | None:
+    """Return the header+separator string of the table that *chunk* ends in.
+
+    Scans *chunk* forward to find the last complete header+separator pair
+    belonging to the table that the chunk ends with.  Returns
+    ``"header_row\\nsep_row\\n"`` or ``None`` if the table has no parseable
+    header in this chunk.
+
+    Only call this after confirming ``_chunk_ends_in_table(chunk)`` is True.
+    """
+    lines = chunk.splitlines()
+    header_line: str | None = None
+    sep_line: str | None = None
+
+    for line in lines:
+        if not _is_table_line(line):
+            # Any non-table line (blank or text) marks a boundary between tables.
+            # Reset tracking so the next table is treated as independent.
+            header_line = None
+            sep_line = None
+            continue
+
+        if _is_separator_row(line):
+            if header_line is not None and sep_line is None:
+                sep_line = line
+        else:
+            if sep_line is None:
+                # Before we've seen the separator — this could be the header row
+                header_line = line
+            # After separator: data row; keep the captured header+sep
+
+    if header_line and sep_line:
+        return f"{header_line}\n{sep_line}\n"
+    return None
+
+
+def _is_table_continuation_chunk(chunk: str) -> bool:
+    """Return True if *chunk* starts with table data rows but has no header.
+
+    A "continuation chunk" is one produced by splitting a large table: it
+    begins with rows that belong to the previous chunk's table but has no
+    header+separator of its own.
+    """
+    lines = [ln for ln in chunk.splitlines() if ln.strip()]
+    if not lines or not _is_table_line(lines[0]):
+        return False
+
+    # If the first table line is a separator, the header was in the previous chunk.
+    if _is_separator_row(lines[0]):
+        return True
+
+    # First line is a data/header row.  A proper new table has a separator as
+    # the second table line.  If we don't see one in the first few table lines,
+    # this chunk is a continuation.
+    table_lines_seen = 0
+    for line in lines:
+        if not _is_table_line(line):
+            break
+        table_lines_seen += 1
+        if table_lines_seen == 1:
+            continue  # skip the first (already checked above)
+        # Second table line is also a data row → continuation (no separator found)
+        return not _is_separator_row(line)
+
+    # Only one table line found (or zero non-table lines after first)
+    return True
 
 
 def _retreat_to_table_start(text: str, split_pos: int) -> int:
