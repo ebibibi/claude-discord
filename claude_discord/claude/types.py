@@ -106,6 +106,7 @@ class StreamEvent:
     tool_result_id: str | None = None
     tool_result_content: str | None = None
     thinking: str | None = None
+    has_redacted_thinking: bool = False
     is_complete: bool = False
     cost_usd: float | None = None
     duration_ms: int | None = None

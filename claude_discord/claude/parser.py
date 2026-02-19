@@ -95,6 +95,9 @@ def _parse_assistant(data: dict[str, Any], event: StreamEvent) -> None:
             if thinking_text:
                 thinking_parts.append(thinking_text)
 
+        elif block_type == "redacted_thinking":
+            event.has_redacted_thinking = True
+
     if text_parts:
         event.text = "\n".join(text_parts)
     if thinking_parts:

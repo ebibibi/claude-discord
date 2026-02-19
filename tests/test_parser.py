@@ -237,3 +237,34 @@ class TestTokenUsage:
         event = parse_line(line)
         assert event is not None
         assert event.input_tokens is None
+
+
+class TestRedactedThinking:
+    def test_redacted_thinking_sets_flag(self):
+        line = (
+            '{"type": "assistant", "message": {"content": '
+            '[{"type": "redacted_thinking", "data": "opaque-blob"}]}}'
+        )
+        event = parse_line(line)
+        assert event is not None
+        assert event.has_redacted_thinking is True
+
+    def test_normal_thinking_does_not_set_flag(self):
+        line = (
+            '{"type": "assistant", "message": {"content": '
+            '[{"type": "thinking", "thinking": "Let me reason..."}]}}'
+        )
+        event = parse_line(line)
+        assert event is not None
+        assert event.has_redacted_thinking is False
+
+    def test_redacted_thinking_alongside_text(self):
+        line = (
+            '{"type": "assistant", "message": {"content": '
+            '[{"type": "redacted_thinking", "data": "blob"}, '
+            '{"type": "text", "text": "Here is my answer."}]}}'
+        )
+        event = parse_line(line)
+        assert event is not None
+        assert event.has_redacted_thinking is True
+        assert event.text == "Here is my answer."

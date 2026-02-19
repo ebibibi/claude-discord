@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from claude_discord.discord_ui.embeds import session_complete_embed, thinking_embed
+from claude_discord.discord_ui.embeds import (
+    redacted_thinking_embed,
+    session_complete_embed,
+    thinking_embed,
+)
 
 
 class TestThinkingEmbed:
@@ -67,3 +71,20 @@ class TestSessionCompleteEmbed:
         embed = session_complete_embed(input_tokens=500, output_tokens=100, cache_read_tokens=0)
         assert embed.description is not None
         assert "%" not in embed.description
+
+
+class TestRedactedThinkingEmbed:
+    def test_title_mentions_redacted(self) -> None:
+        embed = redacted_thinking_embed()
+        assert embed.title is not None
+        assert "redacted" in embed.title.lower()
+
+    def test_has_description(self) -> None:
+        embed = redacted_thinking_embed()
+        assert embed.description is not None
+        assert len(embed.description) > 0
+
+    def test_color_distinct_from_regular_thinking(self) -> None:
+        regular = thinking_embed("x")
+        redacted = redacted_thinking_embed()
+        assert redacted.colour.value != regular.colour.value
