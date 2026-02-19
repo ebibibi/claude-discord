@@ -113,10 +113,13 @@ class TestNotify:
 class TestSchedule:
     @pytest.mark.asyncio
     async def test_schedule_creates_notification(self, client: TestClient) -> None:
-        resp = await client.post("/api/schedule", json={
-            "message": "Reminder",
-            "scheduled_at": "2026-01-01T09:00:00",
-        })
+        resp = await client.post(
+            "/api/schedule",
+            json={
+                "message": "Reminder",
+                "scheduled_at": "2026-01-01T09:00:00",
+            },
+        )
         assert resp.status == 200
         data = await resp.json()
         assert data["status"] == "scheduled"
@@ -134,10 +137,13 @@ class TestSchedule:
 
     @pytest.mark.asyncio
     async def test_schedule_invalid_time(self, client: TestClient) -> None:
-        resp = await client.post("/api/schedule", json={
-            "message": "test",
-            "scheduled_at": "not-a-date",
-        })
+        resp = await client.post(
+            "/api/schedule",
+            json={
+                "message": "test",
+                "scheduled_at": "not-a-date",
+            },
+        )
         assert resp.status == 400
 
 
@@ -151,10 +157,13 @@ class TestListScheduled:
 
     @pytest.mark.asyncio
     async def test_list_after_schedule(self, client: TestClient) -> None:
-        await client.post("/api/schedule", json={
-            "message": "test",
-            "scheduled_at": "2026-01-01T09:00:00",
-        })
+        await client.post(
+            "/api/schedule",
+            json={
+                "message": "test",
+                "scheduled_at": "2026-01-01T09:00:00",
+            },
+        )
         resp = await client.get("/api/scheduled")
         data = await resp.json()
         assert len(data["notifications"]) == 1
@@ -163,10 +172,13 @@ class TestListScheduled:
 class TestCancelScheduled:
     @pytest.mark.asyncio
     async def test_cancel_existing(self, client: TestClient) -> None:
-        resp = await client.post("/api/schedule", json={
-            "message": "test",
-            "scheduled_at": "2026-01-01T09:00:00",
-        })
+        resp = await client.post(
+            "/api/schedule",
+            json={
+                "message": "test",
+                "scheduled_at": "2026-01-01T09:00:00",
+            },
+        )
         nid = (await resp.json())["id"]
         resp = await client.delete(f"/api/scheduled/{nid}")
         assert resp.status == 200

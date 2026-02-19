@@ -35,11 +35,7 @@ class TestNoDirectRunnerRunInCogs:
 
     def _get_cog_files(self) -> list[Path]:
         """Return all .py files in cogs/ except _run_helper.py."""
-        return [
-            f
-            for f in COGS_DIR.glob("*.py")
-            if f.name not in ("_run_helper.py", "__init__.py")
-        ]
+        return [f for f in COGS_DIR.glob("*.py") if f.name not in ("_run_helper.py", "__init__.py")]
 
     def test_no_direct_runner_run_in_cogs(self) -> None:
         """No Cog file should call runner.run() directly."""
@@ -51,14 +47,13 @@ class TestNoDirectRunnerRunInCogs:
                 lines = content.splitlines()
                 for match in matches:
                     # Find line number
-                    line_no = content[:match.start()].count("\n") + 1
+                    line_no = content[: match.start()].count("\n") + 1
                     violations.append(f"  {cog_file.name}:{line_no}: {lines[line_no - 1].strip()}")
 
         if violations:
             msg = (
                 "Direct runner.run() calls found in Cog files.\n"
-                "Use run_claude_in_thread() from _run_helper instead:\n"
-                + "\n".join(violations)
+                "Use run_claude_in_thread() from _run_helper instead:\n" + "\n".join(violations)
             )
             pytest.fail(msg)
 

@@ -17,6 +17,7 @@ import discord
 
 from ..claude.runner import ClaudeRunner
 from ..claude.types import MessageType, SessionState
+from ..concurrency import SessionRegistry
 from ..database.repository import SessionRepository
 from ..discord_ui.chunker import chunk_message
 from ..discord_ui.embeds import (
@@ -126,6 +127,7 @@ async def run_claude_in_thread(
     prompt: str,
     session_id: str | None,
     status: StatusManager | None = None,
+    registry: SessionRegistry | None = None,
 ) -> str | None:
     """Execute Claude Code CLI and stream results to a Discord thread.
 
@@ -137,10 +139,18 @@ async def run_claude_in_thread(
         prompt: The user's message or skill invocation.
         session_id: Optional session ID to resume. None for new sessions.
         status: Optional StatusManager for emoji reactions on the user's message.
+        registry: Optional SessionRegistry for concurrency awareness.
+                  When provided, the session is registered during execution and
+                  a concurrency notice is prepended to the prompt.
 
     Returns:
         The final session_id, or None if the run failed.
     """
+    # Layer 1 + 2: Register session and prepend concurrency notice
+    if registry is not None:
+        registry.register(thread.id, prompt[:100], runner.working_dir)
+        prompt = registry.build_concurrency_notice(thread.id) + "\n\n" + prompt
+
     state = SessionState(session_id=session_id, thread_id=thread.id)
     streamer = StreamingMessageManager(thread)
 
@@ -228,6 +238,9 @@ async def run_claude_in_thread(
         await thread.send(embed=error_embed("An unexpected error occurred."))
         if status:
             await status.set_error()
+    finally:
+        if registry is not None:
+            registry.unregister(thread.id)
 
     return state.session_id
 
