@@ -64,6 +64,10 @@ class UpgradeConfig:
     channel_ids: set[int] | None = None
     step_timeout: int = _STEP_TIMEOUT
     restart_approval: bool = False
+    upgrade_approval: bool = False
+    """If True, wait for a user to react with ✅ before running any upgrade
+    commands. Useful when you want manual control over when updates are applied.
+    When False (default), upgrade steps run automatically on webhook trigger."""
 
 
 class AutoUpgradeCog(commands.Cog):
@@ -139,6 +143,17 @@ class AutoUpgradeCog(commands.Cog):
         thread = await trigger_message.create_thread(name=self.config.trigger_prefix[:100])
 
         try:
+            # Step 0: Optional upgrade approval before any subprocess runs
+            if self.config.upgrade_approval:
+                await self._wait_for_approval(
+                    trigger_message,
+                    thread,
+                    prompt=(
+                        f"📦 New release of **{self.config.package_name}** detected. "
+                        "React ✅ on this message to start the upgrade."
+                    ),
+                )
+
             # Step 1: Upgrade package
             upgrade_cmd = self.config.upgrade_command or [
                 "uv",
@@ -217,16 +232,22 @@ class AutoUpgradeCog(commands.Cog):
         self,
         trigger_message: discord.Message,
         thread: discord.Thread,
+        *,
+        prompt: str | None = None,
     ) -> None:
-        """Wait for a user to approve the restart by reacting with ✅.
+        """Wait for a user to approve by reacting with ✅.
 
         Posts a notification with a ✅ reaction. When any non-bot user adds
         the same reaction, approval is granted. Sends periodic reminders
         every ``_drain_timeout`` seconds while waiting.
+
+        Args:
+            trigger_message: The original webhook/trigger message.
+            thread: The thread to post status messages in.
+            prompt: Custom prompt text. Defaults to a restart-approval message.
         """
-        approval_msg = await thread.send(
-            "📦 Update installed. React ✅ on this message to restart."
-        )
+        text = prompt or "📦 Update installed. React ✅ on this message to restart."
+        approval_msg = await thread.send(text)
         await approval_msg.add_reaction("✅")
 
         while True:
