@@ -26,7 +26,6 @@ from discord.ext import commands
 
 from ..claude.runner import ClaudeRunner
 from ..database.repository import SessionRepository
-from ..discord_ui.chunker import chunk_message
 from ._run_helper import run_claude_in_thread
 
 logger = logging.getLogger(__name__)
@@ -229,27 +228,3 @@ class SkillCommandCog(commands.Cog):
             prompt=prompt,
             session_id=None,
         )
-
-    @app_commands.command(name="skills", description="List available Claude Code skills")
-    async def list_skills(self, interaction: discord.Interaction) -> None:
-        """Show all available skills."""
-        if not self._is_authorized(interaction.user.id):
-            await interaction.response.send_message(
-                "You don't have permission to use this command.", ephemeral=True
-            )
-            return
-
-        # Refresh before listing
-        self._maybe_reload_skills()
-
-        lines = [f"**Claude Code Skills** ({len(self._skills)})\n"]
-        for s in self._skills:
-            desc = s["description"][:60] + "…" if len(s["description"]) > 60 else s["description"]
-            lines.append(f"• `{s['name']}` — {desc}" if desc else f"• `{s['name']}`")
-
-        text = "\n".join(lines)
-        for chunk in chunk_message(text):
-            if interaction.response.is_done():
-                await interaction.followup.send(chunk, ephemeral=True)
-            else:
-                await interaction.response.send_message(chunk, ephemeral=True)
