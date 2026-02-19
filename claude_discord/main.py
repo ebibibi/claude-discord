@@ -44,6 +44,7 @@ def load_config() -> dict[str, str]:
         "claude_working_dir": os.getenv("CLAUDE_WORKING_DIR", ""),
         "max_concurrent": os.getenv("MAX_CONCURRENT_SESSIONS", "3"),
         "timeout": os.getenv("SESSION_TIMEOUT_SECONDS", "300"),
+        "owner_id": os.getenv("DISCORD_OWNER_ID", ""),
     }
 
 
@@ -68,7 +69,8 @@ async def main() -> None:
         timeout_seconds=int(config["timeout"]),
     )
 
-    bot = ClaudeDiscordBot(channel_id=int(config["channel_id"]))
+    owner_id = int(config["owner_id"]) if config["owner_id"] else None
+    bot = ClaudeDiscordBot(channel_id=int(config["channel_id"]), owner_id=owner_id)
 
     # Register cog
     cog = ClaudeChatCog(
