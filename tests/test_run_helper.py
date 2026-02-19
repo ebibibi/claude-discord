@@ -232,6 +232,29 @@ class TestRunClaudeInThread:
         assert "||" not in embed.description
 
     @pytest.mark.asyncio
+    async def test_redacted_thinking_posted_as_embed(
+        self, thread: MagicMock, runner: MagicMock, repo: MagicMock
+    ) -> None:
+        """A redacted_thinking block should post a placeholder embed."""
+        events = [
+            StreamEvent(message_type=MessageType.SYSTEM, session_id="sess-1"),
+            StreamEvent(message_type=MessageType.ASSISTANT, has_redacted_thinking=True),
+            StreamEvent(
+                message_type=MessageType.RESULT,
+                is_complete=True,
+                text="Done.",
+                session_id="sess-1",
+            ),
+        ]
+        runner.run = self._make_async_gen(events)
+
+        await run_claude_in_thread(thread, runner, repo, "test", None)
+
+        embed_calls = [c for c in thread.send.call_args_list if "embed" in c.kwargs]
+        titles = [c.kwargs["embed"].title or "" for c in embed_calls]
+        assert any("redacted" in t.lower() for t in titles)
+
+    @pytest.mark.asyncio
     async def test_error_handling(
         self, thread: MagicMock, runner: MagicMock, repo: MagicMock
     ) -> None:

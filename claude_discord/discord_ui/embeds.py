@@ -124,6 +124,15 @@ def thinking_embed(thinking_text: str) -> discord.Embed:
     )
 
 
+def redacted_thinking_embed() -> discord.Embed:
+    """Create a placeholder embed for a redacted_thinking block."""
+    return discord.Embed(
+        title="\U0001f512 Thinking (redacted)",
+        description="Some reasoning was performed but cannot be shown.",
+        color=0x95A5A6,  # Muted grey
+    )
+
+
 def error_embed(error: str) -> discord.Embed:
     """Create an embed for errors."""
     return discord.Embed(

@@ -22,6 +22,7 @@ from ..database.repository import SessionRepository
 from ..discord_ui.chunker import chunk_message
 from ..discord_ui.embeds import (
     error_embed,
+    redacted_thinking_embed,
     session_complete_embed,
     session_start_embed,
     thinking_embed,
@@ -179,6 +180,10 @@ async def run_claude_in_thread(
                 # Extended thinking — post as a collapsed embed
                 if event.thinking:
                     await thread.send(embed=thinking_embed(event.thinking))
+
+                # Redacted thinking — post a placeholder embed
+                if event.has_redacted_thinking:
+                    await thread.send(embed=redacted_thinking_embed())
 
                 # Intermediate text — post immediately via streaming manager
                 if event.text:
