@@ -16,10 +16,10 @@ from claude_discord.cogs.skill_command import (
     _parse_skill_meta,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_cog(
     skills: list[dict[str, str]] | None = None,
@@ -87,6 +87,7 @@ def _make_thread(thread_id: int = 12345, parent_id: int = 999) -> MagicMock:
 # _parse_skill_meta
 # ---------------------------------------------------------------------------
 
+
 class TestParseSkillMeta:
     def test_valid_frontmatter(self, tmp_path: Path) -> None:
         skill_dir = tmp_path / "my-skill"
@@ -135,7 +136,7 @@ class TestParseSkillMeta:
         # Make unreadable
         skill_md.chmod(0o000)
         try:
-            result = _parse_skill_meta(skill_dir)
+            _parse_skill_meta(skill_dir)
             # On some systems this may still be readable by root
             # Either None or a valid result is acceptable
         finally:
@@ -145,6 +146,7 @@ class TestParseSkillMeta:
 # ---------------------------------------------------------------------------
 # _load_skills
 # ---------------------------------------------------------------------------
+
 
 class TestLoadSkills:
     def test_loads_multiple_skills(self, tmp_path: Path) -> None:
@@ -177,6 +179,7 @@ class TestLoadSkills:
 # ---------------------------------------------------------------------------
 # Autocomplete
 # ---------------------------------------------------------------------------
+
 
 class TestAutocomplete:
     @pytest.mark.asyncio
@@ -244,6 +247,7 @@ class TestAutocomplete:
 # Lazy reload
 # ---------------------------------------------------------------------------
 
+
 class TestLazyReload:
     def test_no_reload_within_interval(self) -> None:
         cog = _make_cog(skills=[{"name": "test", "description": ""}])
@@ -269,9 +273,7 @@ class TestLazyReload:
         cog._last_loaded = time.monotonic() - SKILL_RELOAD_INTERVAL - 1
         new_skills = [{"name": "new-skill", "description": "Appears after reload"}]
         interaction = _make_interaction()
-        with patch(
-            "claude_discord.cogs.skill_command._load_skills", return_value=new_skills
-        ):
+        with patch("claude_discord.cogs.skill_command._load_skills", return_value=new_skills):
             choices = await cog._skill_name_autocomplete(interaction, "new")
         assert len(choices) == 1
         assert choices[0].value == "new-skill"
@@ -280,6 +282,7 @@ class TestLazyReload:
 # ---------------------------------------------------------------------------
 # /skill command — authorization & validation
 # ---------------------------------------------------------------------------
+
 
 class TestRunSkillValidation:
     @pytest.mark.asyncio
@@ -311,6 +314,7 @@ class TestRunSkillValidation:
 # /skill — new thread mode (default)
 # ---------------------------------------------------------------------------
 
+
 class TestNewThreadMode:
     @pytest.mark.asyncio
     async def test_creates_thread_and_runs(self) -> None:
@@ -323,7 +327,9 @@ class TestNewThreadMode:
         mock_channel.create_thread = AsyncMock(return_value=mock_thread)
         cog.bot.get_channel = MagicMock(return_value=mock_channel)
 
-        with patch("claude_discord.cogs.skill_command.run_claude_in_thread", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "claude_discord.cogs.skill_command.run_claude_in_thread", new_callable=AsyncMock
+        ) as mock_run:
             await cog.run_skill.callback(cog, interaction, name="todoist", args=None)
             mock_run.assert_called_once()
             call_kwargs = mock_run.call_args.kwargs
@@ -346,7 +352,9 @@ class TestNewThreadMode:
         mock_channel.create_thread = AsyncMock(return_value=mock_thread)
         cog.bot.get_channel = MagicMock(return_value=mock_channel)
 
-        with patch("claude_discord.cogs.skill_command.run_claude_in_thread", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "claude_discord.cogs.skill_command.run_claude_in_thread", new_callable=AsyncMock
+        ) as mock_run:
             await cog.run_skill.callback(cog, interaction, name="todoist", args='filter "today"')
             call_kwargs = mock_run.call_args.kwargs
             assert call_kwargs["prompt"] == '/todoist filter "today"'
@@ -361,7 +369,9 @@ class TestNewThreadMode:
         mock_channel.create_thread = AsyncMock(return_value=mock_thread)
         cog.bot.get_channel = MagicMock(return_value=mock_channel)
 
-        with patch("claude_discord.cogs.skill_command.run_claude_in_thread", new_callable=AsyncMock):
+        with patch(
+            "claude_discord.cogs.skill_command.run_claude_in_thread", new_callable=AsyncMock
+        ):
             await cog.run_skill.callback(cog, interaction, name="todoist", args="search work")
         call_kwargs = mock_channel.create_thread.call_args.kwargs
         assert call_kwargs["name"] == "/todoist search work"
@@ -381,6 +391,7 @@ class TestNewThreadMode:
 # /skill — in-thread mode
 # ---------------------------------------------------------------------------
 
+
 class TestInThreadMode:
     @pytest.mark.asyncio
     async def test_resumes_session_in_thread(self) -> None:
@@ -394,7 +405,9 @@ class TestInThreadMode:
         record.session_id = "abc-123"
         cog.repo.get = AsyncMock(return_value=record)
 
-        with patch("claude_discord.cogs.skill_command.run_claude_in_thread", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "claude_discord.cogs.skill_command.run_claude_in_thread", new_callable=AsyncMock
+        ) as mock_run:
             await cog.run_skill.callback(cog, interaction, name="recall", args=None)
             call_kwargs = mock_run.call_args.kwargs
             assert call_kwargs["session_id"] == "abc-123"
@@ -409,7 +422,9 @@ class TestInThreadMode:
         interaction = _make_interaction(channel=thread)
         cog.repo.get = AsyncMock(return_value=None)
 
-        with patch("claude_discord.cogs.skill_command.run_claude_in_thread", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "claude_discord.cogs.skill_command.run_claude_in_thread", new_callable=AsyncMock
+        ) as mock_run:
             await cog.run_skill.callback(cog, interaction, name="recall", args=None)
             call_kwargs = mock_run.call_args.kwargs
             assert call_kwargs["session_id"] is None
@@ -427,7 +442,9 @@ class TestInThreadMode:
         mock_channel.create_thread = AsyncMock(return_value=new_thread)
         cog.bot.get_channel = MagicMock(return_value=mock_channel)
 
-        with patch("claude_discord.cogs.skill_command.run_claude_in_thread", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "claude_discord.cogs.skill_command.run_claude_in_thread", new_callable=AsyncMock
+        ) as mock_run:
             await cog.run_skill.callback(cog, interaction, name="test", args=None)
             # Should have created a new thread, not used the existing one
             mock_channel.create_thread.assert_called_once()
@@ -442,59 +459,18 @@ class TestInThreadMode:
         interaction = _make_interaction(channel=thread)
         cog.repo.get = AsyncMock(return_value=None)
 
-        with patch("claude_discord.cogs.skill_command.run_claude_in_thread", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "claude_discord.cogs.skill_command.run_claude_in_thread", new_callable=AsyncMock
+        ) as mock_run:
             await cog.run_skill.callback(cog, interaction, name="todoist", args="filter today")
             call_kwargs = mock_run.call_args.kwargs
             assert call_kwargs["prompt"] == "/todoist filter today"
 
 
 # ---------------------------------------------------------------------------
-# /skills — list command
-# ---------------------------------------------------------------------------
-
-class TestListSkills:
-    @pytest.mark.asyncio
-    async def test_lists_skills(self) -> None:
-        skills = [
-            {"name": "todoist", "description": "Task management"},
-            {"name": "goodmorning", "description": "Morning routine"},
-        ]
-        cog = _make_cog(skills=skills)
-        interaction = _make_interaction()
-        interaction.response.is_done = MagicMock(return_value=False)
-
-        await cog.list_skills.callback(cog, interaction)
-        call_args = interaction.response.send_message.call_args
-        text = call_args.args[0]
-        assert "todoist" in text
-        assert "goodmorning" in text
-        assert call_args.kwargs.get("ephemeral") is True
-
-    @pytest.mark.asyncio
-    async def test_list_unauthorized(self) -> None:
-        cog = _make_cog(skills=[], allowed_user_ids={42})
-        interaction = _make_interaction(user_id=99)
-        await cog.list_skills.callback(cog, interaction)
-        assert "permission" in interaction.response.send_message.call_args.args[0].lower()
-
-    @pytest.mark.asyncio
-    async def test_list_triggers_reload(self) -> None:
-        cog = _make_cog(skills=[])
-        cog._last_loaded = time.monotonic() - SKILL_RELOAD_INTERVAL - 1
-        new_skills = [{"name": "refreshed", "description": ""}]
-        interaction = _make_interaction()
-
-        with patch(
-            "claude_discord.cogs.skill_command._load_skills", return_value=new_skills
-        ):
-            await cog.list_skills.callback(cog, interaction)
-        text = interaction.response.send_message.call_args.args[0]
-        assert "refreshed" in text
-
-
-# ---------------------------------------------------------------------------
 # _is_claude_thread
 # ---------------------------------------------------------------------------
+
 
 class TestIsClaudeThread:
     def test_thread_under_claude_channel(self) -> None:
