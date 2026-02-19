@@ -23,6 +23,7 @@ from ..concurrency import SessionRegistry
 from ..database.repository import SessionRepository
 from ..discord_ui.embeds import stopped_embed
 from ..discord_ui.status import StatusManager
+from ..discord_ui.thread_dashboard import ThreadState, ThreadStatusDashboard
 from ..discord_ui.views import StopView
 from ._run_helper import run_claude_in_thread
 
@@ -53,6 +54,7 @@ class ClaudeChatCog(commands.Cog):
         max_concurrent: int = 3,
         allowed_user_ids: set[int] | None = None,
         registry: SessionRegistry | None = None,
+        dashboard: ThreadStatusDashboard | None = None,
     ) -> None:
         self.bot = bot
         self.repo = repo
@@ -62,6 +64,8 @@ class ClaudeChatCog(commands.Cog):
         self._registry = registry or getattr(bot, "session_registry", None)
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._active_runners: dict[int, ClaudeRunner] = {}
+        # Dashboard may be None until bot is ready; resolved lazily in _get_dashboard()
+        self._dashboard = dashboard
 
     @property
     def active_session_count(self) -> int:
@@ -72,6 +76,12 @@ class ClaudeChatCog(commands.Cog):
     def active_count(self) -> int:
         """Alias for active_session_count (satisfies DrainAware protocol)."""
         return self.active_session_count
+
+    def _get_dashboard(self) -> ThreadStatusDashboard | None:
+        """Return the dashboard, resolving it from the bot if not yet set."""
+        if self._dashboard is None:
+            self._dashboard = getattr(self.bot, "thread_dashboard", None)
+        return self._dashboard
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
@@ -223,6 +233,18 @@ class ClaudeChatCog(commands.Cog):
             )
 
         async with self._semaphore:
+            dashboard = self._get_dashboard()
+            description = prompt[:100].replace("\n", " ")
+
+            # Mark thread as PROCESSING when Claude starts
+            if dashboard is not None:
+                await dashboard.set_state(
+                    thread.id,
+                    ThreadState.PROCESSING,
+                    description,
+                    thread=thread,
+                )
+
             status = StatusManager(user_message)
             await status.set_thinking()
 
@@ -245,3 +267,12 @@ class ClaudeChatCog(commands.Cog):
             finally:
                 await stop_view.disable(stop_msg)
                 self._active_runners.pop(thread.id, None)
+
+                # Transition to WAITING_INPUT so owner knows a reply is needed
+                if dashboard is not None:
+                    await dashboard.set_state(
+                        thread.id,
+                        ThreadState.WAITING_INPUT,
+                        description,
+                        thread=thread,
+                    )
