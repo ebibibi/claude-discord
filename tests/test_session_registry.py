@@ -99,9 +99,9 @@ class TestConcurrencyNotice:
         registry = SessionRegistry()
         registry.register(1001, "my task")
         notice = registry.build_concurrency_notice(1001)
-        assert "concurrent" in notice.lower() or "simultaneous" in notice.lower()
+        assert "concurrency notice" in notice.lower()
         # Should NOT list specific other sessions
-        assert "Currently active sessions" not in notice
+        assert "ACTIVE SESSIONS RIGHT NOW" not in notice
 
     def test_with_others_includes_session_info(self) -> None:
         registry = SessionRegistry()

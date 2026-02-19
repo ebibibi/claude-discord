@@ -27,27 +27,28 @@ class ActiveSession:
 
 
 _BASE_CONCURRENCY_NOTICE = """\
-[CONCURRENCY NOTICE] You are running via Discord. \
-Multiple Claude Code sessions may be active simultaneously. \
-To avoid conflicts:
+[CONCURRENCY NOTICE — MANDATORY] You are one of MULTIPLE Claude Code sessions \
+running simultaneously via Discord. Other sessions ARE active right now. \
+You MUST follow these rules to avoid destroying each other's work:
 
-- **Git**: Before making changes, create a branch or worktree \
-(`git worktree add ../wt-{thread_id} -b session/{thread_id}`). \
-Always commit and push before finishing — uncommitted changes in a shared \
-working directory WILL be lost when another session switches branches.
-- **Files**: Another session may be editing the same files outside of git. \
-Check for recent modifications before overwriting.
-- **Ports & processes**: Shared network ports or lock files may already be in use. \
-Verify availability before binding.
-- **Resources**: Shared databases, APIs with rate limits, or singleton processes \
-may be accessed by other sessions concurrently.
+1. **Git — USE A WORKTREE (REQUIRED)**: Run \
+`git worktree add ../wt-{thread_id} -b session/{thread_id}` BEFORE making \
+any changes. Work ONLY inside your worktree. NEVER modify the main working \
+directory directly. Always commit and push before finishing — uncommitted \
+changes WILL be lost.
+2. **Files**: Another session may be editing the same files RIGHT NOW. \
+Check `git status` and recent file modification times before overwriting.
+3. **Ports & processes**: Shared network ports or lock files may already be in use.
+4. **Resources**: Shared databases, APIs with rate limits, or singleton processes \
+may be accessed concurrently.
 
-If you detect a potential conflict with another session, \
-stop and warn the user before proceeding.\
+CRITICAL: If your target repository is the same as another active session's, \
+you MUST use a separate worktree or stop and warn the user. \
+Do NOT proceed without isolation.\
 """
 
 _OTHER_SESSIONS_HEADER = """
-Currently active sessions (avoid conflicts with these):
+⚠️ ACTIVE SESSIONS RIGHT NOW (you MUST avoid conflicts with these):
 """
 
 
@@ -122,5 +123,8 @@ class SessionRegistry:
                 if s.working_dir:
                     line += f" (working in {s.working_dir})"
                 notice += line + "\n"
-            notice += "\nIf your work may conflict with any of the above, stop and warn the user.\n"
+            notice += (
+                "\nIf your work targets the same repository as any session above, "
+                "you MUST use a git worktree. Do NOT proceed without isolation.\n"
+            )
         return notice

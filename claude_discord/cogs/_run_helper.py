@@ -149,7 +149,17 @@ async def run_claude_in_thread(
     # Layer 1 + 2: Register session and prepend concurrency notice
     if registry is not None:
         registry.register(thread.id, prompt[:100], runner.working_dir)
-        prompt = registry.build_concurrency_notice(thread.id) + "\n\n" + prompt
+        others = registry.list_others(thread.id)
+        notice = registry.build_concurrency_notice(thread.id)
+        prompt = notice + "\n\n" + prompt
+        logger.info(
+            "Concurrency notice injected for thread %d (%d other active session(s), dir=%s)",
+            thread.id,
+            len(others),
+            runner.working_dir or "(default)",
+        )
+    else:
+        logger.debug("No session registry — concurrency notice skipped for thread %d", thread.id)
 
     state = SessionState(session_id=session_id, thread_id=thread.id)
     streamer = StreamingMessageManager(thread)
