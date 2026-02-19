@@ -4,6 +4,7 @@ Provides slash commands for viewing and managing Claude Code sessions:
 - /resume-info: Show CLI resume command for the current thread's session
 - /sessions: List all known sessions (Discord and CLI originated)
 - /sync-sessions: Import CLI sessions as Discord threads
+- /sync-settings: Configure session sync preferences (thread style)
 """
 
 from __future__ import annotations
@@ -17,8 +18,9 @@ from discord import app_commands
 from discord.ext import commands
 
 from ..database.repository import SessionRepository
+from ..database.settings_repo import SettingsRepository
 from ..discord_ui.embeds import COLOR_INFO, COLOR_SUCCESS
-from ..session_sync import extract_recent_messages, scan_cli_sessions
+from ..session_sync import CliSession, extract_recent_messages, scan_cli_sessions
 
 if TYPE_CHECKING:
     from ..bot import ClaudeDiscordBot
@@ -36,6 +38,16 @@ _ORIGIN_CHOICES = [
     app_commands.Choice(name="CLI", value="cli"),
 ]
 
+SETTING_SYNC_THREAD_STYLE = "sync_thread_style"
+THREAD_STYLE_CHANNEL = "channel"
+THREAD_STYLE_MESSAGE = "message"
+_VALID_THREAD_STYLES = {THREAD_STYLE_CHANNEL, THREAD_STYLE_MESSAGE}
+
+_STYLE_CHOICES = [
+    app_commands.Choice(name="Channel threads (hidden in panel)", value=THREAD_STYLE_CHANNEL),
+    app_commands.Choice(name="Message threads (visible in channel)", value=THREAD_STYLE_MESSAGE),
+]
+
 
 class SessionManageCog(commands.Cog):
     """Cog for session listing, resume info, and CLI sync commands."""
@@ -45,10 +57,66 @@ class SessionManageCog(commands.Cog):
         bot: ClaudeDiscordBot,
         repo: SessionRepository,
         cli_sessions_path: str | None = None,
+        settings_repo: SettingsRepository | None = None,
     ) -> None:
         self.bot = bot
         self.repo = repo
         self.cli_sessions_path = cli_sessions_path
+        self.settings_repo = settings_repo
+
+    async def _get_thread_style(self) -> str:
+        """Get the configured thread style, defaulting to 'channel'."""
+        if self.settings_repo is None:
+            return THREAD_STYLE_CHANNEL
+        style = await self.settings_repo.get(SETTING_SYNC_THREAD_STYLE)
+        if style in _VALID_THREAD_STYLES:
+            return style
+        return THREAD_STYLE_CHANNEL
+
+    @app_commands.command(
+        name="sync-settings",
+        description="View or change session sync settings",
+    )
+    @app_commands.describe(thread_style="How synced sessions appear in Discord")
+    @app_commands.choices(thread_style=_STYLE_CHOICES)
+    async def sync_settings(
+        self,
+        interaction: discord.Interaction,
+        thread_style: str | None = None,
+    ) -> None:
+        """View or change sync settings. Without arguments, shows current settings."""
+        current_style = await self._get_thread_style()
+
+        if thread_style is not None and thread_style in _VALID_THREAD_STYLES:
+            if self.settings_repo is not None:
+                await self.settings_repo.set(SETTING_SYNC_THREAD_STYLE, thread_style)
+            current_style = thread_style
+            action = "updated"
+        else:
+            action = "current"
+
+        style_desc = {
+            THREAD_STYLE_CHANNEL: (
+                "\U0001f4c1 **Channel threads** — threads appear in the Threads panel, "
+                "keeping the main channel clean"
+            ),
+            THREAD_STYLE_MESSAGE: (
+                "\U0001f4ac **Message threads** — each session posts a summary card "
+                "in the channel with a thread attached"
+            ),
+        }
+
+        embed = discord.Embed(
+            title="\u2699\ufe0f Sync Settings",
+            description=(
+                f"**Thread style**: {current_style}\n\n{style_desc.get(current_style, '')}"
+            ),
+            color=COLOR_SUCCESS if action == "updated" else COLOR_INFO,
+        )
+        if action == "updated":
+            embed.set_footer(text="Setting updated! New syncs will use this style.")
+
+        await interaction.response.send_message(embed=embed)
 
     @app_commands.command(
         name="resume-info",
@@ -148,6 +216,8 @@ class SessionManageCog(commands.Cog):
 
         await interaction.response.defer()
 
+        thread_style = await self._get_thread_style()
+
         # Run CPU/IO-heavy scan in a thread to avoid blocking the event loop
         cli_sessions = await asyncio.to_thread(scan_cli_sessions, self.cli_sessions_path)
         raw_channel = self.bot.get_channel(self.bot.channel_id)
@@ -176,10 +246,9 @@ class SessionManageCog(commands.Cog):
                 continue
 
             thread_name = (cli_session.summary or cli_session.session_id)[:100]
-            thread = await channel.create_thread(
-                name=f"\U0001f5a5 {thread_name}",
-                type=discord.ChannelType.public_thread,
-            )
+
+            # Create thread based on configured style
+            thread = await self._create_sync_thread(channel, cli_session, thread_name, thread_style)
 
             # Save to DB
             await self.repo.save(
@@ -190,56 +259,34 @@ class SessionManageCog(commands.Cog):
                 summary=cli_session.summary,
             )
 
-            # Post info embed in the thread
-            embed = discord.Embed(
-                title="\U0001f5a5\ufe0f Imported CLI Session",
-                description=(
-                    f"This thread is linked to a Claude Code CLI session.\n"
-                    f"Reply here to continue the conversation.\n\n"
-                    f"```\nclaude --resume {cli_session.session_id}\n```"
-                ),
-                color=COLOR_INFO,
-            )
-            if cli_session.working_dir:
-                embed.add_field(
-                    name="Working Directory",
-                    value=f"`{cli_session.working_dir}`",
-                    inline=True,
+            # Post info embed inside the thread (for channel-style threads
+            # this is the main content; for message-style the embed is on
+            # the parent message so we skip the duplicate here)
+            if thread_style == THREAD_STYLE_CHANNEL:
+                info_embed = discord.Embed(
+                    title="\U0001f5a5\ufe0f Imported CLI Session",
+                    description=(
+                        f"This thread is linked to a Claude Code CLI session.\n"
+                        f"Reply here to continue the conversation.\n\n"
+                        f"```\nclaude --resume {cli_session.session_id}\n```"
+                    ),
+                    color=COLOR_INFO,
                 )
-            if cli_session.timestamp:
-                embed.add_field(name="Created", value=cli_session.timestamp[:10], inline=True)
-            embed.set_footer(text=f"Session: {cli_session.session_id[:8]}...")
-
-            await thread.send(embed=embed)
+                if cli_session.working_dir:
+                    info_embed.add_field(
+                        name="Working Directory",
+                        value=f"`{cli_session.working_dir}`",
+                        inline=True,
+                    )
+                if cli_session.timestamp:
+                    info_embed.add_field(
+                        name="Created", value=cli_session.timestamp[:10], inline=True
+                    )
+                info_embed.set_footer(text=f"Session: {cli_session.session_id[:8]}...")
+                await thread.send(embed=info_embed)
 
             # Post recent conversation messages for context
-            recent = await asyncio.to_thread(
-                extract_recent_messages,
-                self.cli_sessions_path,
-                cli_session.session_id,
-                count=6,
-                max_content_len=500,
-            )
-            if recent:
-                lines: list[str] = []
-                for msg in recent:
-                    if msg.role == "user":
-                        lines.append(f"**You:** {msg.content}")
-                    else:
-                        lines.append(f"**Claude:** {msg.content}")
-
-                # Split into chunks that fit Discord's 2000 char limit
-                chunk = ""
-                for line in lines:
-                    candidate = f"{chunk}\n\n{line}" if chunk else line
-                    if len(candidate) > 1900:
-                        if chunk:
-                            await thread.send(chunk)
-                        chunk = line[:1900]
-                    else:
-                        chunk = candidate
-                if chunk:
-                    await thread.send(chunk)
+            await self._post_recent_messages(thread, cli_session.session_id)
 
             imported += 1
 
@@ -255,3 +302,70 @@ class SessionManageCog(commands.Cog):
             color=COLOR_SUCCESS,
         )
         await interaction.followup.send(embed=embed)
+
+    async def _create_sync_thread(
+        self,
+        channel: discord.TextChannel,
+        cli_session: CliSession,
+        thread_name: str,
+        style: str,
+    ) -> discord.Thread:
+        """Create a thread using the configured style.
+
+        - channel: Creates a standalone thread in the Threads panel.
+        - message: Posts a summary embed, then creates a thread from it.
+        """
+        if style == THREAD_STYLE_MESSAGE:
+            embed = discord.Embed(
+                title=f"\U0001f5a5\ufe0f {thread_name[:80]}",
+                description=f"```\nclaude --resume {cli_session.session_id}\n```",
+                color=COLOR_INFO,
+            )
+            if cli_session.working_dir:
+                dir_short = cli_session.working_dir.rsplit("/", 1)[-1]
+                embed.add_field(name="Directory", value=f"`{dir_short}`", inline=True)
+            if cli_session.timestamp:
+                embed.add_field(name="Created", value=cli_session.timestamp[:10], inline=True)
+            embed.set_footer(text=f"Session: {cli_session.session_id[:8]}...")
+
+            summary_msg = await channel.send(embed=embed)
+            return await summary_msg.create_thread(name=f"\U0001f5a5 {thread_name}")
+
+        # Default: channel thread
+        return await channel.create_thread(
+            name=f"\U0001f5a5 {thread_name}",
+            type=discord.ChannelType.public_thread,
+        )
+
+    async def _post_recent_messages(self, thread: discord.Thread, session_id: str) -> None:
+        """Post recent conversation messages inside the thread for context."""
+        assert self.cli_sessions_path is not None  # Caller ensures this
+        recent = await asyncio.to_thread(
+            extract_recent_messages,
+            self.cli_sessions_path,
+            session_id,
+            count=6,
+            max_content_len=500,
+        )
+        if not recent:
+            return
+
+        lines: list[str] = []
+        for msg in recent:
+            if msg.role == "user":
+                lines.append(f"**You:** {msg.content}")
+            else:
+                lines.append(f"**Claude:** {msg.content}")
+
+        # Split into chunks that fit Discord's 2000 char limit
+        chunk = ""
+        for line in lines:
+            candidate = f"{chunk}\n\n{line}" if chunk else line
+            if len(candidate) > 1900:
+                if chunk:
+                    await thread.send(chunk)
+                chunk = line[:1900]
+            else:
+                chunk = candidate
+        if chunk:
+            await thread.send(chunk)

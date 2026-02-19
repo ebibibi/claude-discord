@@ -18,6 +18,7 @@ from .cogs.skill_command import SkillCommandCog
 from .cogs.webhook_trigger import WebhookTrigger, WebhookTriggerCog
 from .database.notification_repo import NotificationRepository
 from .database.repository import SessionRepository
+from .database.settings_repo import SettingsRepository
 from .discord_ui.chunker import chunk_message
 from .discord_ui.embeds import (
     error_embed,
@@ -36,6 +37,7 @@ __all__ = [
     "SessionManageCog",
     "SkillCommandCog",
     "SessionRepository",
+    "SettingsRepository",
     # Session Sync
     "CliSession",
     "SessionMessage",
