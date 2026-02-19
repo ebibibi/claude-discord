@@ -21,6 +21,7 @@ import discord
 from discord.ext import commands
 
 from ..cogs._run_helper import run_claude_in_thread
+from ..concurrency import SessionRegistry
 
 if TYPE_CHECKING:
     from ..claude.runner import ClaudeRunner
@@ -70,12 +71,14 @@ class WebhookTriggerCog(commands.Cog):
         triggers: dict[str, WebhookTrigger],
         allowed_webhook_ids: set[int] | None = None,
         channel_ids: set[int] | None = None,
+        registry: SessionRegistry | None = None,
     ) -> None:
         self.bot = bot
         self.runner = runner
         self.triggers = triggers
         self.allowed_webhook_ids = allowed_webhook_ids
         self.channel_ids = channel_ids
+        self._registry = registry
         self._locks: dict[str, asyncio.Lock] = {prefix: asyncio.Lock() for prefix in triggers}
         self._active_count: int = 0
 
@@ -152,6 +155,7 @@ class WebhookTriggerCog(commands.Cog):
                 prompt=trigger.prompt,
                 session_id=None,
                 status=None,
+                registry=self._registry,
             )
 
             if session_id:

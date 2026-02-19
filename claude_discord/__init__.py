@@ -16,6 +16,7 @@ from .cogs.claude_chat import ClaudeChatCog
 from .cogs.session_manage import SessionManageCog
 from .cogs.skill_command import SkillCommandCog
 from .cogs.webhook_trigger import WebhookTrigger, WebhookTriggerCog
+from .concurrency import ActiveSession, SessionRegistry
 from .database.notification_repo import NotificationRepository
 from .database.repository import SessionRepository
 from .database.settings_repo import SettingsRepository
@@ -34,6 +35,9 @@ __all__ = [
     # Core
     "ClaudeRunner",
     "ClaudeChatCog",
+    # Concurrency
+    "ActiveSession",
+    "SessionRegistry",
     "SessionManageCog",
     "SkillCommandCog",
     "SessionRepository",

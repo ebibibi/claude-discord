@@ -20,7 +20,7 @@ from claude_discord.cogs._run_helper import (
     _truncate_result,
     run_claude_in_thread,
 )
-from claude_discord.discord_ui.embeds import timeout_embed
+from claude_discord.concurrency import SessionRegistry
 
 
 class TestTruncateResult:
@@ -360,3 +360,158 @@ class TestMakeErrorEmbed:
         # "Timed out" not at start — should NOT match
         embed = _make_error_embed("Process Timed out after 300 seconds")
         assert embed.title == "❌ Error"
+
+
+class TestConcurrencyIntegration:
+    """Tests that run_claude_in_thread integrates with SessionRegistry."""
+
+    @pytest.fixture
+    def thread(self) -> MagicMock:
+        t = MagicMock(spec=discord.Thread)
+        t.id = 12345
+        t.send = AsyncMock(return_value=MagicMock(spec=discord.Message))
+        return t
+
+    @pytest.fixture
+    def repo(self) -> MagicMock:
+        r = MagicMock()
+        r.save = AsyncMock()
+        return r
+
+    @pytest.fixture
+    def runner(self) -> MagicMock:
+        return MagicMock()
+
+    def _make_async_gen(self, events: list[StreamEvent]):
+        async def gen(*args, **kwargs):
+            for e in events:
+                yield e
+
+        return gen
+
+    def _simple_events(self) -> list[StreamEvent]:
+        return [
+            StreamEvent(message_type=MessageType.SYSTEM, session_id="sess-1"),
+            StreamEvent(
+                message_type=MessageType.RESULT,
+                is_complete=True,
+                text="Done.",
+                session_id="sess-1",
+                cost_usd=0.01,
+                duration_ms=500,
+            ),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_prompt_includes_concurrency_notice(
+        self, thread: MagicMock, runner: MagicMock, repo: MagicMock
+    ) -> None:
+        """When registry is provided, prompt should be prefixed with notice."""
+        registry = SessionRegistry()
+        captured_prompt = []
+
+        async def capturing_gen(prompt, **kwargs):
+            captured_prompt.append(prompt)
+            for e in self._simple_events():
+                yield e
+
+        runner.run = capturing_gen
+
+        await run_claude_in_thread(thread, runner, repo, "fix the bug", None, registry=registry)
+
+        assert len(captured_prompt) == 1
+        assert captured_prompt[0].startswith("[CONCURRENCY NOTICE]")
+        assert "fix the bug" in captured_prompt[0]
+
+    @pytest.mark.asyncio
+    async def test_session_registered_during_run(
+        self, thread: MagicMock, runner: MagicMock, repo: MagicMock
+    ) -> None:
+        """Session should be registered in the registry while running."""
+        registry = SessionRegistry()
+        registered_during_run = []
+
+        original_events = self._simple_events()
+
+        async def capturing_gen(prompt, **kwargs):
+            # Capture registry state during execution
+            registered_during_run.extend(registry.list_active())
+            for e in original_events:
+                yield e
+
+        runner.run = capturing_gen
+
+        await run_claude_in_thread(thread, runner, repo, "fix the bug", None, registry=registry)
+
+        assert len(registered_during_run) == 1
+        assert registered_during_run[0].thread_id == 12345
+
+    @pytest.mark.asyncio
+    async def test_session_unregistered_after_run(
+        self, thread: MagicMock, runner: MagicMock, repo: MagicMock
+    ) -> None:
+        """Session should be removed from registry after completion."""
+        registry = SessionRegistry()
+        runner.run = self._make_async_gen(self._simple_events())
+
+        await run_claude_in_thread(thread, runner, repo, "fix the bug", None, registry=registry)
+
+        assert registry.list_active() == []
+
+    @pytest.mark.asyncio
+    async def test_session_unregistered_on_error(
+        self, thread: MagicMock, runner: MagicMock, repo: MagicMock
+    ) -> None:
+        """Session should be removed from registry even if an error occurs."""
+        registry = SessionRegistry()
+
+        async def failing_gen(prompt, **kwargs):
+            raise RuntimeError("boom")
+            yield  # make it a generator  # noqa: E501
+
+        runner.run = failing_gen
+
+        await run_claude_in_thread(thread, runner, repo, "fix the bug", None, registry=registry)
+
+        assert registry.list_active() == []
+
+    @pytest.mark.asyncio
+    async def test_other_sessions_in_notice(
+        self, thread: MagicMock, runner: MagicMock, repo: MagicMock
+    ) -> None:
+        """When other sessions exist, their info should appear in the prompt."""
+        registry = SessionRegistry()
+        registry.register(9999, "running /goodmorning", "/home/ebi")
+
+        captured_prompt = []
+
+        async def capturing_gen(prompt, **kwargs):
+            captured_prompt.append(prompt)
+            for e in self._simple_events():
+                yield e
+
+        runner.run = capturing_gen
+
+        await run_claude_in_thread(thread, runner, repo, "fix the bug", None, registry=registry)
+
+        assert len(captured_prompt) == 1
+        assert "/goodmorning" in captured_prompt[0]
+        assert "fix the bug" in captured_prompt[0]
+
+    @pytest.mark.asyncio
+    async def test_no_registry_no_prefix(
+        self, thread: MagicMock, runner: MagicMock, repo: MagicMock
+    ) -> None:
+        """Without registry, prompt should be passed as-is."""
+        captured_prompt = []
+
+        async def capturing_gen(prompt, **kwargs):
+            captured_prompt.append(prompt)
+            for e in self._simple_events():
+                yield e
+
+        runner.run = capturing_gen
+
+        await run_claude_in_thread(thread, runner, repo, "fix the bug", None)
+
+        assert captured_prompt[0] == "fix the bug"
