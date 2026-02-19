@@ -13,6 +13,7 @@ import asyncio
 import logging
 import os
 import re
+import signal
 from collections.abc import AsyncGenerator
 
 from .parser import parse_line
@@ -103,6 +104,20 @@ class ClaudeRunner:
             dangerously_skip_permissions=self.dangerously_skip_permissions,
             include_partial_messages=self.include_partial_messages,
         )
+
+    async def interrupt(self) -> None:
+        """Interrupt the subprocess with SIGINT (graceful stop, like Ctrl+C / Escape).
+
+        Gives Claude Code a chance to flush output and preserve session state
+        before exiting.  Falls back to kill() if the process does not stop
+        within 10 seconds.
+        """
+        if self._process and self._process.returncode is None:
+            self._process.send_signal(signal.SIGINT)
+            try:
+                await asyncio.wait_for(self._process.wait(), timeout=10)
+            except TimeoutError:
+                await self.kill()
 
     async def kill(self) -> None:
         """Terminate the subprocess, force-killing if it doesn't stop in time."""

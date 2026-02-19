@@ -161,7 +161,7 @@ class TestInterrupt:
     async def test_interrupt_sends_sigint(self) -> None:
         """interrupt() sends SIGINT to the running process."""
         runner = ClaudeRunner()
-        mock_process = AsyncMock()
+        mock_process = MagicMock()
         mock_process.returncode = None
         mock_process.wait = AsyncMock(return_value=0)
         runner._process = mock_process
@@ -174,23 +174,19 @@ class TestInterrupt:
     async def test_interrupt_falls_back_to_kill_on_timeout(self) -> None:
         """interrupt() calls kill() if the process doesn't stop within the timeout."""
         runner = ClaudeRunner()
-        mock_process = AsyncMock()
+        mock_process = MagicMock()
         mock_process.returncode = None
-        mock_process.terminate = MagicMock()
+        mock_process.wait = AsyncMock(return_value=0)
+        runner._process = mock_process
 
-        async def stubbed_wait_for(coro: object, timeout: float) -> None:
-            # Close the coroutine to avoid ResourceWarning
-            if hasattr(coro, "close"):
-                coro.close()  # type: ignore[union-attr]
-            raise TimeoutError
-
-        with patch("asyncio.wait_for", side_effect=stubbed_wait_for):
-            mock_process.wait = AsyncMock(return_value=0)
+        with (
+            patch("asyncio.wait_for", side_effect=TimeoutError),
+            patch.object(runner, "kill", new_callable=AsyncMock) as mock_kill,
+        ):
             await runner.interrupt()
 
         mock_process.send_signal.assert_called_once_with(signal_module.SIGINT)
-        # kill() should have been called via the fallback path (terminate())
-        mock_process.terminate.assert_called_once()
+        mock_kill.assert_called_once()
 
 
 class TestSignalKillSuppression:
