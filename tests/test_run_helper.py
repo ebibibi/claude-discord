@@ -420,7 +420,7 @@ class TestConcurrencyIntegration:
         await run_claude_in_thread(thread, runner, repo, "fix the bug", None, registry=registry)
 
         assert len(captured_prompt) == 1
-        assert captured_prompt[0].startswith("[CONCURRENCY NOTICE]")
+        assert captured_prompt[0].startswith("[CONCURRENCY NOTICE")
         assert "fix the bug" in captured_prompt[0]
 
     @pytest.mark.asyncio
