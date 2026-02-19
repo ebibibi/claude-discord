@@ -87,14 +87,25 @@ class SessionRepository:
                 return None
             return SessionRecord(**dict(row))
 
-    async def list_all(self, limit: int = 50) -> list[SessionRecord]:
-        """List all sessions ordered by most recently used."""
+    async def list_all(self, limit: int = 50, origin: str | None = None) -> list[SessionRecord]:
+        """List all sessions ordered by most recently used.
+
+        Args:
+            limit: Maximum number of records to return.
+            origin: Optional filter by origin ('discord', 'cli'). None returns all.
+        """
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            cursor = await db.execute(
-                "SELECT * FROM sessions ORDER BY last_used_at DESC LIMIT ?",
-                (limit,),
-            )
+            if origin:
+                cursor = await db.execute(
+                    "SELECT * FROM sessions WHERE origin = ? ORDER BY last_used_at DESC LIMIT ?",
+                    (origin, limit),
+                )
+            else:
+                cursor = await db.execute(
+                    "SELECT * FROM sessions ORDER BY last_used_at DESC LIMIT ?",
+                    (limit,),
+                )
             rows = await cursor.fetchall()
             return [SessionRecord(**dict(row)) for row in rows]
 
