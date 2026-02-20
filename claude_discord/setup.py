@@ -78,7 +78,7 @@ async def setup_bridge(
 
     # --- ClaudeChatCog ---
     chat_cog = ClaudeChatCog(
-        bot,
+        bot,  # type: ignore[arg-type]  # consumers pass their own Bot subclass
         repo=session_repo,
         runner=runner,
         allowed_user_ids=allowed_user_ids,
@@ -89,7 +89,7 @@ async def setup_bridge(
 
     # --- SessionManageCog ---
     session_manage_cog = SessionManageCog(
-        bot,
+        bot,  # type: ignore[arg-type]  # consumers pass their own Bot subclass
         repo=session_repo,
         cli_sessions_path=cli_sessions_path,
         settings_repo=settings_repo,
