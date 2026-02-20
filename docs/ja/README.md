@@ -56,6 +56,7 @@ GitHub PR (自動マージ)  ←  git push  ←  Claude Code  ←──┘
 - **並行セッション** — 複数セッションを並列実行（設定可能な上限）
 - **インタラクティブな質問** — Claude が `AskUserQuestion` を呼び出すと、Discord ボタンまたは Select Menu を表示し、回答を受け取ってセッションを再開
 - **セッションステータスダッシュボード** — メインチャンネルにピン留めされた live embed で各スレッドの状態（処理中 / 入力待ち）を一覧表示。Claude が返答を待っているときはオーナーを @mention で通知
+- **マルチセッション協調** — `COORDINATION_CHANNEL_ID` を設定すると、各セッションの開始・終了イベントを共有チャンネルにブロードキャストし、並行セッション同士がお互いの状況を把握できる
 
 ### CI/CD 自動化
 - **Webhook トリガー** — GitHub Actions や任意の CI/CD システムから Claude Code タスクをトリガー
@@ -130,6 +131,7 @@ uv lock --upgrade-package claude-code-discord-bridge && uv sync
 | `MAX_CONCURRENT_SESSIONS` | 最大並行セッション数 | `3` |
 | `SESSION_TIMEOUT_SECONDS` | セッション非アクティブタイムアウト | `300` |
 | `DISCORD_OWNER_ID` | Claude が入力待ちのとき @mention する Discord ユーザー ID | （オプション） |
+| `COORDINATION_CHANNEL_ID` | マルチセッション協調ブロードキャスト用チャンネル ID | （オプション） |
 
 ## Discord Bot のセットアップ
 
@@ -358,6 +360,8 @@ claude_discord/
     models.py              # SQLite スキーマ
     repository.py          # セッション CRUD 操作
     notification_repo.py   # スケジュール通知 CRUD
+  coordination/
+    service.py             # CoordinationService — セッションライフサイクルイベントを共有チャンネルに投稿
   discord_ui/
     status.py              # 絵文字リアクションステータスマネージャー（デバウンス付き）
     chunker.py             # フェンス・テーブル対応メッセージ分割
