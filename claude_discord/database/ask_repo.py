@@ -63,11 +63,14 @@ class PendingAskRepository:
 
     async def get(self, thread_id: int) -> PendingAskRecord | None:
         """Return the pending ask for *thread_id*, or None."""
-        async with aiosqlite.connect(self._db_path) as db, db.execute(
-            "SELECT thread_id, session_id, questions_json, question_idx, created_at "
-            "FROM pending_asks WHERE thread_id = ?",
-            (thread_id,),
-        ) as cursor:
+        async with (
+            aiosqlite.connect(self._db_path) as db,
+            db.execute(
+                "SELECT thread_id, session_id, questions_json, question_idx, created_at "
+                "FROM pending_asks WHERE thread_id = ?",
+                (thread_id,),
+            ) as cursor,
+        ):
             row = await cursor.fetchone()
         if row is None:
             return None
@@ -97,10 +100,13 @@ class PendingAskRepository:
 
     async def list_all(self) -> list[PendingAskRecord]:
         """Return all pending asks (used on bot startup for view recovery)."""
-        async with aiosqlite.connect(self._db_path) as db, db.execute(
-            "SELECT thread_id, session_id, questions_json, question_idx, created_at "
-            "FROM pending_asks ORDER BY created_at"
-        ) as cursor:
+        async with (
+            aiosqlite.connect(self._db_path) as db,
+            db.execute(
+                "SELECT thread_id, session_id, questions_json, question_idx, created_at "
+                "FROM pending_asks ORDER BY created_at"
+            ) as cursor,
+        ):
             rows = await cursor.fetchall()
         return [
             PendingAskRecord(
