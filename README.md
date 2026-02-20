@@ -54,6 +54,7 @@ GitHub PR (auto-merge)  ←  git push  ←  Claude Code  ←──┘
 - **Timeout notifications** — Dedicated embed with elapsed seconds and actionable guidance when a session times out
 - **Interactive questions** — When Claude calls `AskUserQuestion`, the bot renders Discord Buttons or a Select Menu and resumes the session with your answer
 - **Session status dashboard** — A live pinned embed in the main channel shows which threads are processing vs. waiting for input; owner is @-mentioned when Claude needs a reply
+- **Multi-session coordination** — When `COORDINATION_CHANNEL_ID` is set, each session broadcasts start/end events to a shared channel so concurrent sessions stay aware of each other
 
 ### CI/CD Automation
 - **Webhook triggers** — Trigger Claude Code tasks from GitHub Actions or any CI/CD system
@@ -144,6 +145,7 @@ uv lock --upgrade-package claude-code-discord-bridge && uv sync
 | `MAX_CONCURRENT_SESSIONS` | Max parallel sessions | `3` |
 | `SESSION_TIMEOUT_SECONDS` | Session inactivity timeout | `300` |
 | `DISCORD_OWNER_ID` | Discord user ID to @-mention when Claude needs input | (optional) |
+| `COORDINATION_CHANNEL_ID` | Channel ID for multi-session coordination broadcasts | (optional) |
 
 ## Discord Bot Setup
 
@@ -372,6 +374,8 @@ claude_discord/
     models.py              # SQLite schema
     repository.py          # Session CRUD operations
     notification_repo.py   # Scheduled notification CRUD
+  coordination/
+    service.py             # CoordinationService — posts session lifecycle events to a shared channel
   discord_ui/
     status.py              # Emoji reaction status manager (debounced)
     chunker.py             # Fence- and table-aware message splitting
