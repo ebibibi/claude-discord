@@ -1,10 +1,16 @@
 name: Auto Approve Owner PRs
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    # ready_for_review: fires when a draft PR is converted to ready — this is
+    # the intended trigger for multi-commit workflows where the PR is opened
+    # as a draft, all commits are pushed, and then the PR is marked ready.
+    types: [opened, synchronize, reopened, ready_for_review]
 jobs:
   auto-approve-and-merge:
-    if: github.event.pull_request.user.login == 'ebibibi'
+    # Skip draft PRs — only auto-merge when the PR is explicitly marked ready.
+    # This prevents the race condition where auto-merge fires on the first
+    # commit before subsequent commits have been pushed.
+    if: github.event.pull_request.user.login == 'ebibibi' && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
