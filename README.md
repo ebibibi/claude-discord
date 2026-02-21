@@ -81,6 +81,24 @@ GitHub PR ←── git push ←── Claude Code ─────────�
 
 Already use Claude Code CLI directly? Sync your existing terminal sessions into Discord threads with `/sync-sessions`. Backfills recent conversation messages so you can continue a CLI session from your phone without losing context.
 
+### Programmatic Session Creation
+
+Spawn new Claude Code sessions from scripts, GitHub Actions, or other Claude sessions — without Discord message interaction.
+
+```bash
+# From another Claude session or a CI script:
+curl -X POST "$CCDB_API_URL/api/spawn" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Run security scan on the repo", "thread_name": "Security Scan"}'
+# Returns immediately with the thread ID; Claude runs in the background
+```
+
+Claude subprocesses receive `DISCORD_THREAD_ID` as an environment variable, so a running session can spawn child sessions to parallelize work.
+
+### Startup Resume
+
+If the bot restarts mid-session, interrupted Claude sessions are automatically resumed when the bot comes back online. Any session can mark itself for resume via `POST /api/mark-resume` before the bot shuts down.
+
 ---
 
 ## Features
@@ -124,6 +142,9 @@ Already use Claude Code CLI directly? Sync your existing terminal sessions into 
 - **Session sync** — Import CLI sessions as Discord threads (`/sync-sessions`)
 - **Session list** — `/sessions` with filtering by origin (Discord / CLI / all) and time window
 - **Resume info** — `/resume-info` shows the CLI command to continue the current session in a terminal
+- **Startup resume** — Interrupted sessions restart automatically after bot reboot (marked via `POST /api/mark-resume`)
+- **Programmatic spawn** — `POST /api/spawn` creates a new Discord thread + Claude session from any script or Claude subprocess; returns non-blocking 201 immediately after thread creation
+- **Thread ID injection** — `DISCORD_THREAD_ID` env var is passed to every Claude subprocess, enabling sessions to spawn child sessions via `$CCDB_API_URL/api/spawn`
 
 ### Security
 - **No shell injection** — `asyncio.create_subprocess_exec` only, never `shell=True`
@@ -380,6 +401,8 @@ uv add "claude-code-discord-bridge[api]"
 | GET | `/api/tasks` | List registered tasks |
 | DELETE | `/api/tasks/{id}` | Remove a task |
 | PATCH | `/api/tasks/{id}` | Update a task (enable/disable, change schedule) |
+| POST | `/api/spawn` | Create a new Discord thread and start a Claude Code session (non-blocking) |
+| POST | `/api/mark-resume` | Mark a thread for automatic resume on next bot startup |
 
 ```bash
 # Send notification
@@ -427,6 +450,7 @@ claude_discord/
     task_repo.py           # Scheduled task CRUD
     ask_repo.py            # Pending AskUserQuestion CRUD
     notification_repo.py   # Scheduled notification CRUD
+    resume_repo.py         # Startup resume CRUD (pending resumes across bot restarts)
     settings_repo.py       # Per-guild settings
   discord_ui/
     status.py              # Emoji reaction manager (debounced)
