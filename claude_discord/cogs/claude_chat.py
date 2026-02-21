@@ -281,9 +281,7 @@ class ClaudeChatCog(commands.Cog):
                 continue
 
             if not isinstance(raw, discord.Thread):
-                logger.warning(
-                    "Pending resume: channel %d is not a Thread, skipping", thread_id
-                )
+                logger.warning("Pending resume: channel %d is not a Thread, skipping", thread_id)
                 continue
 
             thread = raw
@@ -317,9 +315,7 @@ class ClaudeChatCog(commands.Cog):
                     session_id=entry.session_id,
                 )
             except Exception:
-                logger.error(
-                    "Failed to resume session in thread %d", thread_id, exc_info=True
-                )
+                logger.error("Failed to resume session in thread %d", thread_id, exc_info=True)
 
     async def _handle_thread_reply(self, message: discord.Message) -> None:
         """Continue a Claude Code session in an existing thread."""
