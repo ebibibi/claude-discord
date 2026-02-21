@@ -237,7 +237,9 @@ class ClaudeChatCog(commands.Cog):
         )
         # Post the prompt so StatusManager has a Message to add reactions to.
         seed_message = await thread.send(prompt)
-        await self._run_claude(seed_message, thread, prompt, session_id=session_id)
+        # Run Claude in the background so /api/spawn returns immediately.
+        # The caller gets the thread reference without waiting for Claude to finish.
+        asyncio.create_task(self._run_claude(seed_message, thread, prompt, session_id=session_id))
         return thread
 
     @commands.Cog.listener()
@@ -308,11 +310,13 @@ class ClaudeChatCog(commands.Cog):
                 seed_message = await thread.send(
                     f"🔄 **Bot が再起動から復帰しました。**\n{resume_prompt}"
                 )
-                await self._run_claude(
-                    seed_message,
-                    thread,
-                    resume_prompt,
-                    session_id=entry.session_id,
+                asyncio.create_task(
+                    self._run_claude(
+                        seed_message,
+                        thread,
+                        resume_prompt,
+                        session_id=entry.session_id,
+                    )
                 )
             except Exception:
                 logger.error("Failed to resume session in thread %d", thread_id, exc_info=True)
