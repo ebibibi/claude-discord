@@ -277,9 +277,6 @@ class ClaudeChatCog(commands.Cog):
                     thread=thread,
                 )
 
-            # Announce session start to coordination channel (no-op if unconfigured)
-            await coordination.post_session_start(thread, description)
-
             status = StatusManager(user_message)
             await status.set_thinking()
 

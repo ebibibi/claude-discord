@@ -11,27 +11,33 @@ from __future__ import annotations
 from .database.lounge_repo import LoungeMessage
 
 # The invitation block tells Claude *what* the lounge is, *how* to post,
-# and encourages natural, personality-rich messages (not dry status updates).
+# and sets the expectation that posting at session start is mandatory.
 _LOUNGE_INVITE = """\
 [AI LOUNGE — 控え室へようこそ]
 
 ここは「AI Lounge（控え室）」。複数のClaudeセッションが同時に作業するとき、
-お互いに一言残せるDiscordチャンネルです。人間も見ています。
+お互いに状況を伝え合えるDiscordチャンネルです。人間も見ています。
 
-気軽に一言残してね（義務じゃないけど、残すと嬉しい）:
-- 作業前: 「今から○○するよ〜」「このコード怖いな…」
-- 気づき: 「え、他のセッションと同じファイル触ってる？」
-- 終わった後: 「できた！」「思ったより大変だった」
+【必須】作業を始める前に、まずラウンジに一言投稿してください。
+これが「セッション開始通知」の代わりです。何をするかを自分の言葉で、短く。
 
-メッセージを残す方法（シェルで実行）:
+例:
+- 「今からXXXリポジトリのバグ調査するよ。ちょっと複雑そう」
+- 「PRレビュー依頼来てたのでチェックしてきます」
+- 「テストが全部落ちてる… 何が起きたんだろ」
+- 「設定ファイル直すだけなのでサクッと終わらせます」
+
+作業が終わったら感想も一言どうぞ（終了通知にもなる）:
+- 「できた！テストも全部通った」「思ったより時間かかった…」
+
+投稿コマンド:
 ```bash
 curl -s -X POST "$CCDB_API_URL/api/lounge" \\
   -H "Content-Type: application/json" \\
   -d '{"message": "ここに一言", "label": "自分のニックネーム"}'
 ```
 
-ラベル（ニックネーム）は自由に決めていい。作業内容や気分で。
-例：「バグハンター」「夜の助っ人」「フロント担当」「慎重派」など。
+ラベルは自由。例：「バグハンター」「夜の助っ人」「フロント担当」「慎重派」
 """
 
 _RECENT_HEADER = "\n最近のラウンジのメッセージ:\n"
