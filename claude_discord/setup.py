@@ -58,9 +58,9 @@ async def setup_bridge(
         enable_scheduler: Whether to enable SchedulerCog.
         task_db_path: Path for scheduled tasks SQLite DB.
         lounge_channel_id: Discord channel ID for AI Lounge messages.
-                           When set, lounge messages are forwarded here.
-                           When None, lounge is still active (stored in DB)
-                           but no Discord channel is posted to.
+                           Defaults to COORDINATION_CHANNEL_ID env var so
+                           lounge and coordination share the same channel
+                           with no extra configuration needed.
 
     Returns:
         BridgeComponents with references to initialized repositories.
@@ -75,6 +75,11 @@ async def setup_bridge(
     from .database.repository import SessionRepository
     from .database.settings_repo import SettingsRepository
     from .database.task_repo import TaskRepository
+
+    # Lounge shares the coordination channel unless explicitly overridden
+    if lounge_channel_id is None:
+        ch_str = os.getenv("COORDINATION_CHANNEL_ID", "")
+        lounge_channel_id = int(ch_str) if ch_str.isdigit() else None
 
     # --- Session DB (also hosts lounge_messages table) ---
     os.makedirs(os.path.dirname(session_db_path) or ".", exist_ok=True)

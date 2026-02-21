@@ -48,7 +48,6 @@ def load_config() -> dict[str, str]:
         "timeout": os.getenv("SESSION_TIMEOUT_SECONDS", "300"),
         "owner_id": os.getenv("DISCORD_OWNER_ID", ""),
         "coordination_channel_id": os.getenv("COORDINATION_CHANNEL_ID", ""),
-        "lounge_channel_id": os.getenv("LOUNGE_CHANNEL_ID", ""),
     }
 
 
@@ -79,14 +78,13 @@ async def main() -> None:
     coordination_channel_id = (
         int(config["coordination_channel_id"]) if config["coordination_channel_id"] else None
     )
-    lounge_channel_id = int(config["lounge_channel_id"]) if config["lounge_channel_id"] else None
     bot = ClaudeDiscordBot(
         channel_id=int(config["channel_id"]),
         owner_id=owner_id,
         coordination_channel_id=coordination_channel_id,
         ask_repo=ask_repo,
         lounge_repo=lounge_repo,
-        lounge_channel_id=lounge_channel_id,
+        lounge_channel_id=coordination_channel_id,  # lounge uses the same channel
     )
 
     # Register cog

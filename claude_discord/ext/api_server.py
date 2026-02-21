@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -68,6 +69,10 @@ class ApiServer:
         self.api_secret = api_secret
         self.task_repo = task_repo
         self.lounge_repo = lounge_repo
+        # Fall back to COORDINATION_CHANNEL_ID so lounge shares the same channel
+        if lounge_channel_id is None:
+            ch_str = os.getenv("COORDINATION_CHANNEL_ID", "")
+            lounge_channel_id = int(ch_str) if ch_str.isdigit() else None
         self.lounge_channel_id = lounge_channel_id
 
         self.app = web.Application()
