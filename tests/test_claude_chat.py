@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
@@ -539,6 +540,8 @@ class TestOnReady:
 
         with patch.object(cog, "_run_claude", side_effect=fake_run_claude):
             await cog.on_ready()
+            # create_task schedules the coroutine; yield to the event loop so it runs.
+            await asyncio.sleep(0)
 
         assert call_order == ["delete", "run_claude"], (
             "delete() must be called before _run_claude to prevent double-resume"
@@ -552,8 +555,12 @@ class TestOnReady:
         from claude_discord.database.resume_repo import PendingResume, PendingResumeRepository
 
         entry = PendingResume(
-            id=1, thread_id=100, session_id=None, reason="self_restart",
-            resume_prompt=None, created_at="2026-02-21 20:00:00",
+            id=1,
+            thread_id=100,
+            session_id=None,
+            reason="self_restart",
+            resume_prompt=None,
+            created_at="2026-02-21 20:00:00",
         )
         resume_repo = MagicMock(spec=PendingResumeRepository)
         resume_repo.get_pending = AsyncMock(return_value=[entry])
