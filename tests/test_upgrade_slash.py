@@ -150,6 +150,76 @@ class TestUpgradeSlashCommandEnabled:
         assert "🔄 my-bot-upgrade" in call_args.kwargs.get("name", "")
 
 
+class TestUpgradeSlashCommandFromThread:
+    """Tests for /upgrade invoked from inside a Discord thread."""
+
+    def _make_thread_interaction(self) -> MagicMock:
+        """Return an interaction where channel is a Thread whose parent is a TextChannel."""
+        parent = MagicMock(spec=discord.TextChannel)
+        parent_thread = MagicMock(spec=discord.Thread)
+        parent_thread.send = AsyncMock()
+        parent.create_thread = AsyncMock(return_value=parent_thread)
+
+        thread_channel = MagicMock(spec=discord.Thread)
+        thread_channel.parent = parent
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.response = MagicMock()
+        interaction.response.send_message = AsyncMock()
+        interaction.response.defer = AsyncMock()
+        interaction.channel = thread_channel
+        return interaction
+
+    async def test_creates_thread_in_parent_channel_when_invoked_from_thread(self):
+        """When /upgrade is run inside a thread, the upgrade thread is created in the parent."""
+        bot = _make_bot()
+        config = _make_config(slash_command_enabled=True)
+        cog = AutoUpgradeCog(bot=bot, config=config)
+        interaction = self._make_thread_interaction()
+
+        proc = _make_process(returncode=0)
+        with (
+            patch(_PATCH_EXEC, return_value=proc),
+            patch(_PATCH_WAIT, new=AsyncMock(return_value=(b"ok", b""))),
+        ):
+            await cog.upgrade_command.callback(cog, interaction)
+
+        # Thread created in the parent channel, not in the sub-thread
+        interaction.channel.parent.create_thread.assert_awaited_once()
+
+    async def test_defers_response_from_thread(self):
+        """Command defers even when invoked from a thread (no timeout)."""
+        bot = _make_bot()
+        config = _make_config(slash_command_enabled=True)
+        cog = AutoUpgradeCog(bot=bot, config=config)
+        interaction = self._make_thread_interaction()
+
+        proc = _make_process(returncode=0)
+        with (
+            patch(_PATCH_EXEC, return_value=proc),
+            patch(_PATCH_WAIT, new=AsyncMock(return_value=(b"ok", b""))),
+        ):
+            await cog.upgrade_command.callback(cog, interaction)
+
+        interaction.response.defer.assert_awaited_once()
+
+    async def test_unsupported_channel_type_sends_ephemeral_error(self):
+        """Non-text, non-thread channels return an ephemeral error."""
+        bot = _make_bot()
+        config = _make_config(slash_command_enabled=True)
+        cog = AutoUpgradeCog(bot=bot, config=config)
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.response = MagicMock()
+        interaction.response.send_message = AsyncMock()
+        interaction.channel = MagicMock(spec=discord.VoiceChannel)  # unsupported
+
+        await cog.upgrade_command.callback(cog, interaction)
+
+        call_args = interaction.response.send_message.call_args
+        assert call_args.kwargs.get("ephemeral") is True
+
+
 class TestUpgradeSlashCommandConfig:
     async def test_slash_command_enabled_field_exists(self):
         """UpgradeConfig should have slash_command_enabled field."""
