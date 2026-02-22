@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
@@ -571,6 +572,48 @@ class TestRestartApproval:
         await cog._wait_for_approval(MagicMock(), thread)
 
         # Should have sent a reminder
+        reminder_calls = [str(c) for c in thread.send.call_args_list if "Still waiting" in str(c)]
+        assert len(reminder_calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_approval_mode_sends_reminder_on_asyncio_timeout(
+        self,
+        bot: MagicMock,
+    ) -> None:
+        """asyncio.TimeoutError (Python 3.10) is handled the same as builtins.TimeoutError.
+
+        Regression test for: on Python 3.10, asyncio.wait_for() raises
+        asyncio.TimeoutError which is NOT a subclass of builtins.TimeoutError,
+        so a bare ``except TimeoutError`` silently drops the exception.
+        """
+        cog = self._make_cog_with_approval(bot)
+        thread = MagicMock(spec=discord.Thread)
+        thread.send = AsyncMock()
+        approval_msg = MagicMock()
+        approval_msg.id = 99999
+        approval_msg.add_reaction = AsyncMock()
+        thread.send.return_value = approval_msg
+
+        bot.user = MagicMock()
+        bot.user.id = 1
+
+        call_count = 0
+
+        async def wait_for_side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise asyncio.TimeoutError  # Python 3.10 asyncio variant
+            event = MagicMock()
+            event.message_id = 99999
+            event.emoji = "✅"
+            event.user_id = 42
+            return event
+
+        bot.wait_for = AsyncMock(side_effect=wait_for_side_effect)
+
+        await cog._wait_for_approval(MagicMock(), thread)
+
         reminder_calls = [str(c) for c in thread.send.call_args_list if "Still waiting" in str(c)]
         assert len(reminder_calls) == 1
 

@@ -179,7 +179,7 @@ class AutoUpgradeCog(commands.Cog):
                 await trigger_message.add_reaction("✅")
                 await thread.send("✅ Upgrade complete (no restart configured).")
 
-        except TimeoutError:
+        except (TimeoutError, asyncio.TimeoutError):  # noqa: UP041 — asyncio.TimeoutError != builtins.TimeoutError on Python 3.10
             await thread.send("❌ Step timed out.")
             await trigger_message.add_reaction("❌")
         except Exception:
@@ -260,7 +260,7 @@ class AutoUpgradeCog(commands.Cog):
                 logger.info("Restart approved by user %s", event.user_id)
                 await thread.send("👍 Restart approved!")
                 return
-            except TimeoutError:
+            except (TimeoutError, asyncio.TimeoutError):  # noqa: UP041 — asyncio.TimeoutError != builtins.TimeoutError on Python 3.10
                 await thread.send(
                     "⏳ Still waiting for restart approval... React ✅ above when ready."
                 )
