@@ -242,6 +242,53 @@ class ClaudeChatCog(commands.Cog):
         asyncio.create_task(self._run_claude(seed_message, thread, prompt, session_id=session_id))
         return thread
 
+    async def cog_unload(self) -> None:
+        """Mark all mid-run Claude sessions for auto-resume on the next bot startup.
+
+        Called by discord.py whenever the cog is removed — including during a
+        clean shutdown triggered by ``systemctl restart/stop``, ``bot.close()``,
+        or any other SIGTERM-based shutdown.  This ensures that sessions which
+        were actively running when the bot was killed will be automatically
+        resumed (with a "bot restarted" prompt) as soon as the bot comes back.
+
+        Idle sessions (where Claude has already replied and is waiting for the
+        next human message) are NOT in ``_active_runners`` and therefore are not
+        marked — they resume naturally via message-triggered resume when the user
+        sends their next message.
+
+        No-op when ``_resume_repo`` is not configured.
+        """
+        if not self._active_runners or self._resume_repo is None:
+            return
+
+        logger.info(
+            "Shutdown detected: marking %d active session(s) for restart-resume",
+            len(self._active_runners),
+        )
+        for thread_id in list(self._active_runners):
+            try:
+                session_id: str | None = None
+                record = await self.repo.get(thread_id)
+                if record is not None:
+                    session_id = record.session_id
+
+                await self._resume_repo.mark(
+                    thread_id,
+                    session_id=session_id,
+                    reason="bot_shutdown",
+                    resume_prompt=(
+                        "ボットが再起動しました。"
+                        "前の作業の続きを確認し、必要な残作業があれば完了してください。"
+                    ),
+                )
+                logger.info(
+                    "Marked thread %d for restart-resume (session=%s)", thread_id, session_id
+                )
+            except Exception:
+                logger.warning(
+                    "Failed to mark thread %d for restart-resume", thread_id, exc_info=True
+                )
+
     @commands.Cog.listener()
     async def on_ready(self) -> None:
         """Resume any Claude sessions that marked themselves for restart-resume.
