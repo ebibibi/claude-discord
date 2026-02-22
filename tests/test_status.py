@@ -90,3 +90,38 @@ class TestHardStallCallback:
         assert sm._stall_task is not None
         assert not sm._stall_task.done()
         await sm.cleanup()
+
+
+class TestCompactStatus:
+    """Tests for compact status emoji."""
+
+    @pytest.mark.asyncio
+    async def test_set_compact_changes_emoji(self) -> None:
+        from claude_discord.discord_ui.status import EMOJI_COMPACT
+
+        msg = _make_message()
+        sm = StatusManager(msg)
+        await sm.set_thinking()
+        await sm.set_compact()
+        # Allow debounce
+        await asyncio.sleep(1)
+        assert sm._target_emoji == EMOJI_COMPACT
+        await sm.cleanup()
+
+    @pytest.mark.asyncio
+    async def test_set_compact_resets_stall_timer(self) -> None:
+        """set_compact should reset stall timer so warning doesn't appear during compaction."""
+        callback = AsyncMock()
+        msg = _make_message()
+        sm = StatusManager(msg, on_hard_stall=callback)
+        await sm.set_thinking()
+        # Simulate time passing
+        loop = asyncio.get_running_loop()
+        sm._last_activity = loop.time() - 25  # Almost at hard stall threshold
+        # Compact resets the timer
+        await sm.set_compact()
+        # Wait past what would have been the stall threshold
+        await asyncio.sleep(3)
+        # Callback should NOT have fired because compact reset the timer
+        callback.assert_not_awaited()
+        await sm.cleanup()
