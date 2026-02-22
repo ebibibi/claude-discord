@@ -425,6 +425,7 @@ class ClaudeChatCog(commands.Cog):
                         ask_repo=self._ask_repo,
                         lounge_repo=self._lounge_repo,
                         stop_view=stop_view,
+                        worktree_manager=getattr(self.bot, "worktree_manager", None),
                     )
                 )
             finally:

@@ -22,6 +22,7 @@ from ..discord_ui.status import StatusManager
 
 if TYPE_CHECKING:
     from ..discord_ui.views import StopView
+    from ..worktree import WorktreeManager
 
 
 @dataclass
@@ -45,6 +46,9 @@ class RunConfig:
         lounge_repo: Repository for AI Lounge context injection.
         stop_view: StopView instance to bump after each major message, keeping
                    the Stop button at the bottom of the thread.
+        worktree_manager: WorktreeManager for automatic session worktree cleanup.
+                          When provided, the worktree for this thread is removed
+                          (if clean) after the session ends.
     """
 
     thread: discord.Thread
@@ -57,6 +61,7 @@ class RunConfig:
     ask_repo: PendingAskRepository | None = None
     lounge_repo: LoungeRepository | None = None
     stop_view: StopView | None = None
+    worktree_manager: WorktreeManager | None = None
 
     # Prevent accidental field mutation — RunConfig is a value object.
     # Use dataclasses.replace() to create modified copies.

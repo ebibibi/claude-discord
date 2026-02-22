@@ -90,6 +90,49 @@ async def _prepare_prompt(config: RunConfig) -> str:
     return prompt
 
 
+async def _cleanup_session_worktree(config: RunConfig) -> None:
+    """Remove the session worktree for this thread if it is clean.
+
+    Runs git operations in a thread pool to avoid blocking the event loop.
+    Logs the outcome but never raises — cleanup failures are non-fatal.
+    """
+    import asyncio
+
+    assert config.worktree_manager is not None  # caller ensures this
+
+    try:
+        result = await asyncio.to_thread(
+            config.worktree_manager.cleanup_for_thread,
+            config.thread.id,
+        )
+        if result.removed:
+            logger.info(
+                "Cleaned up session worktree for thread %d: %s",
+                config.thread.id,
+                result.path,
+            )
+        elif result.reason == "worktree directory does not exist":
+            # Normal case — Claude didn't create a worktree
+            pass
+        else:
+            logger.warning(
+                "Could not clean up worktree for thread %d (%s): %s",
+                config.thread.id,
+                result.path,
+                result.reason,
+            )
+            # Notify the Discord thread if there are uncommitted changes
+            if "uncommitted changes" in result.reason:
+                with contextlib.suppress(Exception):
+                    await config.thread.send(
+                        f"⚠️ **Worktree not cleaned up** — `{result.path}` has uncommitted "
+                        f"changes. Please commit or stash them, then run:\n"
+                        f"```\ngit worktree remove {result.path}\n```"
+                    )
+    except Exception:
+        logger.exception("Unexpected error during worktree cleanup for thread %d", config.thread.id)
+
+
 async def run_claude_with_config(config: RunConfig) -> str | None:
     """Execute Claude Code CLI and stream results to a Discord thread.
 
@@ -121,6 +164,8 @@ async def run_claude_with_config(config: RunConfig) -> str | None:
         await processor.finalize()
         if config.registry is not None:
             config.registry.unregister(config.thread.id)
+        if config.worktree_manager is not None:
+            await _cleanup_session_worktree(config)
 
     # After the stream ends, handle pending AskUserQuestion by showing Discord
     # UI and resuming the session with the user's answer.

@@ -74,6 +74,7 @@ async def setup_bridge(
     enable_scheduler: bool = True,
     task_db_path: str = "data/tasks.db",
     lounge_channel_id: int | None = None,
+    worktree_base_dir: str | None = None,
 ) -> BridgeComponents:
     """Initialize and register all ccdb Cogs in one call.
 
@@ -101,6 +102,11 @@ async def setup_bridge(
                            Defaults to COORDINATION_CHANNEL_ID env var so
                            lounge and coordination share the same channel
                            with no extra configuration needed.
+        worktree_base_dir: Base directory to scan for session worktrees
+                           (e.g. ``/home/user``). When set, a WorktreeManager
+                           is created and attached to the bot, enabling automatic
+                           cleanup of session worktrees at session end and startup.
+                           Defaults to WORKTREE_BASE_DIR env var, or None (disabled).
 
     Returns:
         BridgeComponents with references to initialized repositories.
@@ -116,11 +122,20 @@ async def setup_bridge(
     from .database.resume_repo import PendingResumeRepository
     from .database.settings_repo import SettingsRepository
     from .database.task_repo import TaskRepository
+    from .worktree import WorktreeManager
 
     # Lounge shares the coordination channel unless explicitly overridden
     if lounge_channel_id is None:
         ch_str = os.getenv("COORDINATION_CHANNEL_ID", "")
         lounge_channel_id = int(ch_str) if ch_str.isdigit() else None
+
+    # WorktreeManager — attach to bot so cogs can access it via bot.worktree_manager
+    if worktree_base_dir is None:
+        worktree_base_dir = os.getenv("WORKTREE_BASE_DIR")
+    if worktree_base_dir is not None:
+        if not hasattr(bot, "worktree_manager"):
+            bot.worktree_manager = WorktreeManager(base_dir=worktree_base_dir)  # type: ignore[attr-defined]
+        logger.info("WorktreeManager enabled (base_dir=%s)", worktree_base_dir)
 
     # --- Session DB (also hosts lounge_messages and pending_resumes tables) ---
     os.makedirs(os.path.dirname(session_db_path) or ".", exist_ok=True)
