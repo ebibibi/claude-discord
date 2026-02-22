@@ -87,6 +87,20 @@ class TestStreamingMessageManager:
         # Buffer should still be "first" — append after finalize is ignored
         assert mgr._buffer == "first"
 
+    @pytest.mark.asyncio
+    async def test_flush_survives_connection_error(self, thread: MagicMock) -> None:
+        """Non-discord.HTTPException errors (e.g. ServerDisconnectedError) must not propagate.
+
+        Previously only discord.HTTPException was caught, so aiohttp.ClientError
+        (which ServerDisconnectedError inherits from) would propagate and crash
+        the entire session on bot shutdown.
+        """
+        thread.send.side_effect = Exception("Server disconnected")
+        mgr = StreamingMessageManager(thread)
+        mgr._buffer = "hello"
+        # Should not raise — connection errors are suppressed.
+        await mgr.finalize()
+
 
 class TestPartialMessageStreaming:
     """Tests for partial message streaming behavior introduced with --include-partial-messages.
@@ -465,6 +479,30 @@ class TestRunClaudeInThread:
         assert any("Error" in (c.kwargs["embed"].title or "") for c in embed_calls)
 
     @pytest.mark.asyncio
+    async def test_error_embed_send_failure_does_not_raise(
+        self, thread: MagicMock, runner: MagicMock, repo: MagicMock
+    ) -> None:
+        """If thread.send fails when sending the error embed, it should not crash.
+
+        This happens during bot shutdown: the Discord connection closes, then
+        the session fails, and the error-embed send also fails (ServerDisconnectedError).
+        The exception handler must suppress the secondary failure.
+        """
+
+        async def _failing_run(*args, **kwargs):
+            raise Exception("Server disconnected")
+            yield  # make it an async generator
+
+        runner.run = _failing_run
+
+        # Also make the error-embed send fail to simulate closed connection
+        thread.send.side_effect = Exception("Server disconnected")
+
+        # Should not raise even though both the session and the error-embed send fail
+        result = await run_claude_in_thread(thread, runner, repo, "test", None)
+        assert result is None  # returns None because session_id was never set
+
+    @pytest.mark.asyncio
     async def test_duplicate_final_text_not_reposted(
         self, thread: MagicMock, runner: MagicMock, repo: MagicMock
     ) -> None:
@@ -490,6 +528,40 @@ class TestRunClaudeInThread:
             c for c in thread.send.call_args_list if c.args and isinstance(c.args[0], str)
         ]
         final_msgs = [c for c in text_messages if c.args[0] == "Final answer."]
+        assert len(final_msgs) == 1
+
+    @pytest.mark.asyncio
+    async def test_duplicate_not_reposted_when_result_text_differs_slightly(
+        self, thread: MagicMock, runner: MagicMock, repo: MagicMock
+    ) -> None:
+        """Even if result.text differs slightly from ASSISTANT text, don't re-send.
+
+        The RESULT event's `result` field can have subtle formatting differences
+        (trailing whitespace, newlines) compared to the ASSISTANT event text.
+        The old string-comparison guard would fail in this case and send the
+        text a second time. The flag-based guard prevents this.
+        """
+        events = [
+            StreamEvent(message_type=MessageType.SYSTEM, session_id="sess-1"),
+            StreamEvent(message_type=MessageType.ASSISTANT, text="Final answer."),
+            StreamEvent(
+                message_type=MessageType.RESULT,
+                is_complete=True,
+                text="Final answer.\n",  # trailing newline — subtle difference
+                session_id="sess-1",
+                cost_usd=0.01,
+                duration_ms=500,
+            ),
+        ]
+        runner.run = self._make_async_gen(events)
+
+        await run_claude_in_thread(thread, runner, repo, "test", None)
+
+        # Text should appear only once despite the trailing newline difference
+        text_messages = [
+            c for c in thread.send.call_args_list if c.args and isinstance(c.args[0], str)
+        ]
+        final_msgs = [c for c in text_messages if "Final answer." in c.args[0]]
         assert len(final_msgs) == 1
 
     @pytest.mark.asyncio
@@ -552,6 +624,45 @@ class TestRunClaudeInThread:
 
         embed_calls = [c for c in thread.send.call_args_list if "embed" in c.kwargs]
         assert any("Error" in (c.kwargs["embed"].title or "") for c in embed_calls)
+
+    @pytest.mark.asyncio
+    async def test_session_start_embed_sent_only_once_for_multiple_system_events(
+        self, thread: MagicMock, runner: MagicMock, repo: MagicMock
+    ) -> None:
+        """session_start_embed must be sent exactly once even when Claude emits
+        multiple SYSTEM events (e.g. init + hook feedback events with session_id).
+
+        Regression test for: Claude Code emits 3+ SYSTEM events per session when
+        hooks are configured (init + UserPromptSubmit hook partial + complete),
+        each with session_id, causing 3 identical session-start embeds to appear.
+        """
+        events = [
+            # Simulates: init SYSTEM message
+            StreamEvent(message_type=MessageType.SYSTEM, session_id="sess-1"),
+            # Simulates: hook feedback (UserPromptSubmit partial) — also has session_id
+            StreamEvent(message_type=MessageType.SYSTEM, session_id="sess-1"),
+            # Simulates: hook feedback (UserPromptSubmit complete) — also has session_id
+            StreamEvent(message_type=MessageType.SYSTEM, session_id="sess-1"),
+            StreamEvent(
+                message_type=MessageType.RESULT,
+                is_complete=True,
+                session_id="sess-1",
+                cost_usd=0.001,
+                duration_ms=500,
+            ),
+        ]
+        runner.run = self._make_async_gen(events)
+
+        await run_claude_in_thread(thread, runner, repo, "test", None)
+
+        start_embeds = [
+            c
+            for c in thread.send.call_args_list
+            if "embed" in c.kwargs and "session started" in (c.kwargs["embed"].title or "").lower()
+        ]
+        assert len(start_embeds) == 1, (
+            f"Expected exactly 1 session_start_embed, got {len(start_embeds)}"
+        )
 
 
 class TestMakeErrorEmbed:
@@ -750,13 +861,13 @@ class TestLiveToolTimer:
     @pytest.mark.asyncio
     async def test_timer_updates_embed_after_interval(self) -> None:
         """After TOOL_TIMER_INTERVAL seconds, the embed should be updated with elapsed time."""
-        import claude_discord.cogs._run_helper as rh
+        import claude_discord.discord_ui.tool_timer as tt
 
         msg = self._make_msg()
         timer = LiveToolTimer(msg, self._bash_tool())
 
-        original_interval = rh.TOOL_TIMER_INTERVAL
-        rh.TOOL_TIMER_INTERVAL = 0.01  # speed up for test
+        original_interval = tt.TOOL_TIMER_INTERVAL
+        tt.TOOL_TIMER_INTERVAL = 0.01  # speed up for test
         try:
             task = timer.start()
             await asyncio.sleep(0.05)  # allow at least one tick
@@ -764,7 +875,7 @@ class TestLiveToolTimer:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
         finally:
-            rh.TOOL_TIMER_INTERVAL = original_interval
+            tt.TOOL_TIMER_INTERVAL = original_interval
 
         msg.edit.assert_called()
         # Elapsed time must be in description (title stays stable across ticks)
@@ -777,13 +888,13 @@ class TestLiveToolTimer:
     @pytest.mark.asyncio
     async def test_timer_cancelled_stops_updates(self) -> None:
         """After cancellation, no further edits should occur."""
-        import claude_discord.cogs._run_helper as rh
+        import claude_discord.discord_ui.tool_timer as tt
 
         msg = self._make_msg()
         timer = LiveToolTimer(msg, self._bash_tool())
 
-        original_interval = rh.TOOL_TIMER_INTERVAL
-        rh.TOOL_TIMER_INTERVAL = 0.01
+        original_interval = tt.TOOL_TIMER_INTERVAL
+        tt.TOOL_TIMER_INTERVAL = 0.01
         try:
             task = timer.start()
             await asyncio.sleep(0.005)  # cancel before first tick
@@ -791,7 +902,7 @@ class TestLiveToolTimer:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
         finally:
-            rh.TOOL_TIMER_INTERVAL = original_interval
+            tt.TOOL_TIMER_INTERVAL = original_interval
 
         msg.edit.assert_not_called()
 

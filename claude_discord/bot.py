@@ -16,7 +16,9 @@ from .discord_ui.ask_view import AskView
 
 if TYPE_CHECKING:
     from .database.ask_repo import PendingAskRepository
+    from .database.lounge_repo import LoungeRepository
     from .discord_ui.thread_dashboard import ThreadStatusDashboard
+    from .worktree import WorktreeManager
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,9 @@ class ClaudeDiscordBot(commands.Bot):
         owner_id: int | None = None,
         coordination_channel_id: int | None = None,
         ask_repo: PendingAskRepository | None = None,
+        lounge_repo: LoungeRepository | None = None,
+        lounge_channel_id: int | None = None,
+        worktree_manager: WorktreeManager | None = None,
     ) -> None:
         intents = discord.Intents.default()
         intents.message_content = True
@@ -48,6 +53,11 @@ class ClaudeDiscordBot(commands.Bot):
         self.thread_dashboard: ThreadStatusDashboard | None = None
         # Coordination channel for multi-session awareness (optional)
         self.coordination = CoordinationService(self, coordination_channel_id)
+        # AI Lounge — casual shared space for concurrent Claude sessions (optional)
+        self.lounge_repo: LoungeRepository | None = lounge_repo
+        self.lounge_channel_id: int | None = lounge_channel_id
+        # Worktree lifecycle manager — cleans up session worktrees after runs
+        self.worktree_manager: WorktreeManager | None = worktree_manager
 
     async def on_ready(self) -> None:
         logger.info("Logged in as %s (ID: %s)", self.user, self.user.id if self.user else "?")
@@ -75,12 +85,50 @@ class ClaudeDiscordBot(commands.Bot):
                 self.channel_id,
             )
 
+        # Cleanup orphaned session worktrees from previous bot runs.
+        # At startup there are no active sessions, so all clean session
+        # worktrees are safe to remove.
+        if self.worktree_manager is not None:
+            import asyncio
+
+            asyncio.create_task(self._cleanup_orphaned_worktrees())
+
         # Sync slash commands
         try:
             synced = await self.tree.sync()
             logger.info("Synced %d slash commands", len(synced))
         except Exception:
             logger.exception("Failed to sync slash commands")
+
+    async def _cleanup_orphaned_worktrees(self) -> None:
+        """Remove leftover clean session worktrees from previous bot runs.
+
+        Runs in a background task so it does not block on_ready().
+        """
+        import asyncio
+
+        assert self.worktree_manager is not None  # caller ensures this
+        try:
+            results = await asyncio.to_thread(
+                self.worktree_manager.cleanup_orphaned,
+                set(),  # no active sessions at startup
+            )
+            removed = [r for r in results if r.removed]
+            skipped = [r for r in results if not r.removed and "does not exist" not in r.reason]
+            if removed:
+                logger.info(
+                    "Startup worktree cleanup: removed %d orphaned worktree(s): %s",
+                    len(removed),
+                    [r.path for r in removed],
+                )
+            if skipped:
+                logger.warning(
+                    "Startup worktree cleanup: skipped %d worktree(s) (dirty or locked): %s",
+                    len(skipped),
+                    [(r.path, r.reason) for r in skipped],
+                )
+        except Exception:
+            logger.exception("Error during startup worktree cleanup")
 
     async def _restore_pending_ask_views(self) -> None:
         """Re-register persistent AskViews for questions pending before restart.
