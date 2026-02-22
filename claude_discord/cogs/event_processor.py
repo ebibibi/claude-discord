@@ -13,8 +13,6 @@ from __future__ import annotations
 import contextlib
 import logging
 
-import discord
-
 from ..claude.types import AskQuestion, MessageType, SessionState, StreamEvent
 from ..discord_ui.chunker import chunk_message
 from ..discord_ui.embeds import (
