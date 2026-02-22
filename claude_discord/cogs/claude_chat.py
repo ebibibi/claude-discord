@@ -11,6 +11,7 @@ Handles the core message flow:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 from typing import TYPE_CHECKING
@@ -76,6 +77,10 @@ class ClaudeChatCog(commands.Cog):
         self._registry = registry or getattr(bot, "session_registry", None)
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._active_runners: dict[int, ClaudeRunner] = {}
+        # Tracks the asyncio.Task running _run_claude for each thread.
+        # Used by _handle_thread_reply to wait for an interrupted session
+        # to fully clean up before starting the replacement session.
+        self._active_tasks: dict[int, asyncio.Task] = {}
         # Dashboard may be None until bot is ready; resolved lazily in _get_dashboard()
         self._dashboard = dashboard
         # Coordination service resolved lazily from bot if not supplied directly
@@ -386,13 +391,32 @@ class ClaudeChatCog(commands.Cog):
                 logger.error("Failed to resume session in thread %d", thread_id, exc_info=True)
 
     async def _handle_thread_reply(self, message: discord.Message) -> None:
-        """Continue a Claude Code session in an existing thread."""
+        """Continue a Claude Code session in an existing thread.
+
+        If Claude is already running in this thread, sends SIGINT to the active
+        session (graceful interrupt, like pressing Escape) and waits for it to
+        finish cleaning up before starting the new session.  This prevents two
+        Claude processes from running in parallel in the same thread.
+        """
         thread = message.channel
         assert isinstance(thread, discord.Thread)
 
         record = await self.repo.get(thread.id)
         session_id = record.session_id if record else None
         prompt = await self._build_prompt(message)
+
+        # Interrupt any active session in this thread before starting a new one.
+        existing_runner = self._active_runners.get(thread.id)
+        existing_task = self._active_tasks.get(thread.id)
+        if existing_runner is not None:
+            await thread.send("-# ⚡ Interrupted. Starting with new instruction...")
+            await existing_runner.interrupt()
+            # Wait for the interrupted _run_claude to finish its finally block
+            # (which releases the semaphore and removes entries from dicts).
+            if existing_task is not None and not existing_task.done():
+                with contextlib.suppress(Exception):
+                    await existing_task
+
         await self._run_claude(message, thread, prompt, session_id=session_id)
 
     async def _build_prompt(self, message: discord.Message) -> str:
@@ -457,6 +481,12 @@ class ClaudeChatCog(commands.Cog):
             coordination = self._get_coordination()
             description = prompt[:100].replace("\n", " ")
 
+            # Register the current asyncio Task so _handle_thread_reply can
+            # await it after sending SIGINT to the runner.
+            current_task = asyncio.current_task()
+            if current_task is not None:
+                self._active_tasks[thread.id] = current_task
+
             # Mark thread as PROCESSING when Claude starts
             if dashboard is not None:
                 await dashboard.set_state(
@@ -502,6 +532,7 @@ class ClaudeChatCog(commands.Cog):
             finally:
                 await stop_view.disable()
                 self._active_runners.pop(thread.id, None)
+                self._active_tasks.pop(thread.id, None)
 
                 # Announce session end to coordination channel (no-op if unconfigured)
                 await coordination.post_session_end(thread)
