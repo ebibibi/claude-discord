@@ -97,7 +97,10 @@ Claude subprocesses receive `DISCORD_THREAD_ID` as an environment variable, so a
 
 ### Startup Resume
 
-If the bot restarts mid-session, interrupted Claude sessions are automatically resumed when the bot comes back online. Any session can mark itself for resume via `POST /api/mark-resume` before the bot shuts down.
+If the bot restarts mid-session, interrupted Claude sessions are automatically resumed when the bot comes back online. Sessions are marked for resume in two ways:
+
+- **Automatic** — `AutoUpgradeCog` snapshots all active sessions just before a restart and marks them automatically. No manual action needed.
+- **Manual** — Any session can call `POST /api/mark-resume` directly.
 
 ---
 
@@ -137,13 +140,14 @@ If the bot restarts mid-session, interrupted Claude sessions are automatically r
 - **Webhook triggers** — Trigger Claude Code tasks from GitHub Actions or any CI/CD system
 - **Auto-upgrade** — Automatically update the bot when upstream packages are released
 - **DrainAware restart** — Waits for active sessions to finish before restarting
+- **Auto-resume marking** — Active sessions are automatically marked for resume before restart; they pick up where they left off after the bot comes back online
 - **Restart approval** — Optional gate to confirm upgrades before applying
 
 ### Session Management
 - **Session sync** — Import CLI sessions as Discord threads (`/sync-sessions`)
 - **Session list** — `/sessions` with filtering by origin (Discord / CLI / all) and time window
 - **Resume info** — `/resume-info` shows the CLI command to continue the current session in a terminal
-- **Startup resume** — Interrupted sessions restart automatically after bot reboot (marked via `POST /api/mark-resume`)
+- **Startup resume** — Interrupted sessions restart automatically after bot reboot; `AutoUpgradeCog` marks them automatically, or use `POST /api/mark-resume` manually
 - **Programmatic spawn** — `POST /api/spawn` creates a new Discord thread + Claude session from any script or Claude subprocess; returns non-blocking 201 immediately after thread creation
 - **Thread ID injection** — `DISCORD_THREAD_ID` env var is passed to every Claude subprocess, enabling sessions to spawn child sessions via `$CCDB_API_URL/api/spawn`
 - **Worktree management** — `/worktree-list` shows all active session worktrees with clean/dirty status; `/worktree-cleanup` removes orphaned clean worktrees (supports `dry_run` preview)
@@ -372,7 +376,14 @@ config = UpgradeConfig(
 await bot.add_cog(AutoUpgradeCog(bot, config))
 ```
 
-Before restarting, `AutoUpgradeCog` waits for all active sessions to finish. Any Cog with an `active_count` property is auto-discovered and drained:
+Before restarting, `AutoUpgradeCog`:
+
+1. **Snapshots active sessions** — Collects all threads with running Claude sessions (duck-typed: any Cog with `_active_runners` dict is discovered automatically).
+2. **Drains** — Waits for active sessions to finish naturally.
+3. **Marks for resume** — Saves active thread IDs to the pending-resumes table. On next startup, those sessions are resumed automatically with a "bot restarted, please continue" prompt.
+4. **Restarts** — Executes the configured restart command.
+
+Any Cog with an `active_count` property is auto-discovered and drained:
 
 ```python
 class MyCog(commands.Cog):
@@ -380,6 +391,8 @@ class MyCog(commands.Cog):
     def active_count(self) -> int:
         return len(self._running_tasks)
 ```
+
+Session marking is fully opt-in — it only activates when `setup_bridge()` has initialized the session database (the default). When enabled, sessions resume with `--resume` continuity so Claude Code can pick up the exact conversation where it left off.
 
 ---
 
