@@ -1,5 +1,7 @@
 """Tests for stream-json parser."""
 
+import json
+
 from claude_discord.claude.parser import parse_line
 from claude_discord.claude.types import MessageType, ToolCategory
 
@@ -268,3 +270,70 @@ class TestRedactedThinking:
         assert event is not None
         assert event.has_redacted_thinking is True
         assert event.text == "Here is my answer."
+
+
+class TestCompactBoundary:
+    """Tests for compact_boundary system event parsing."""
+
+    def test_compact_boundary_auto(self) -> None:
+        line = json.dumps(
+            {
+                "type": "system",
+                "subtype": "compact_boundary",
+                "content": "Conversation compacted",
+                "compactMetadata": {"trigger": "auto", "preTokens": 167745},
+            }
+        )
+        event = parse_line(line)
+        assert event is not None
+        assert event.message_type == MessageType.SYSTEM
+        assert event.is_compact is True
+        assert event.compact_trigger == "auto"
+        assert event.compact_pre_tokens == 167745
+
+    def test_compact_boundary_manual(self) -> None:
+        line = json.dumps(
+            {
+                "type": "system",
+                "subtype": "compact_boundary",
+                "compactMetadata": {"trigger": "manual"},
+            }
+        )
+        event = parse_line(line)
+        assert event is not None
+        assert event.is_compact is True
+        assert event.compact_trigger == "manual"
+        assert event.compact_pre_tokens is None
+
+    def test_compact_boundary_no_metadata(self) -> None:
+        line = json.dumps(
+            {
+                "type": "system",
+                "subtype": "compact_boundary",
+            }
+        )
+        event = parse_line(line)
+        assert event is not None
+        assert event.is_compact is True
+        assert event.compact_trigger is None
+
+
+class TestProgressEvent:
+    """Tests for progress event type."""
+
+    def test_progress_event_parsed(self) -> None:
+        line = json.dumps(
+            {
+                "type": "progress",
+                "data": {"message": {"type": "assistant"}},
+            }
+        )
+        event = parse_line(line)
+        assert event is not None
+        assert event.message_type == MessageType.PROGRESS
+
+    def test_progress_event_minimal(self) -> None:
+        line = json.dumps({"type": "progress"})
+        event = parse_line(line)
+        assert event is not None
+        assert event.message_type == MessageType.PROGRESS
