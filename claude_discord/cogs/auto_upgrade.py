@@ -161,12 +161,19 @@ class AutoUpgradeCog(commands.Cog):
             )
             return
 
+        channel = interaction.channel
+        if not isinstance(channel, discord.TextChannel):
+            await interaction.response.send_message(
+                "⚠️ This command can only be used in a text channel.",
+                ephemeral=True,
+            )
+            return
+
         await interaction.response.defer()
 
         async with self._lock:
-            thread = await interaction.channel.create_thread(
+            thread = await channel.create_thread(
                 name=self.config.trigger_prefix[:100],
-                type=discord.ChannelType.public_thread,
             )
             await self._run_pipeline(thread, status_target=None)
 
