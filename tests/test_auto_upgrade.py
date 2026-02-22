@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 import pytest
 from discord.ext import commands
 
-from claude_discord.cogs.auto_upgrade import AutoUpgradeCog, UpgradeConfig
+from claude_discord.cogs.auto_upgrade import AutoUpgradeCog, UpgradeApprovalView, UpgradeConfig
 
 _PATCH_EXEC = "asyncio.create_subprocess_exec"
 _PATCH_WAIT = "asyncio.wait_for"
@@ -903,3 +904,205 @@ class TestMarkSessionsForResume:
         resume_repo.mark.assert_awaited_once()
         assert resume_repo.mark.call_args.args[0] == 555
         assert resume_repo.mark.call_args.kwargs["reason"] == "bot_upgrade"
+
+
+class TestUpgradeApprovalView:
+    """Unit tests for UpgradeApprovalView."""
+
+    @pytest.mark.asyncio
+    async def test_button_is_green_and_labelled(self) -> None:
+        """View has exactly one green button with the default label."""
+        approved = asyncio.Event()
+        view = UpgradeApprovalView(approved_event=approved)
+        buttons = [c for c in view.children if isinstance(c, discord.ui.Button)]
+        assert len(buttons) == 1
+        assert buttons[0].style == discord.ButtonStyle.green
+        assert "Approve" in (buttons[0].label or "")
+
+    @pytest.mark.asyncio
+    async def test_custom_label(self) -> None:
+        """Custom label is applied to the button."""
+        approved = asyncio.Event()
+        view = UpgradeApprovalView(approved_event=approved, label="✅ Approve Restart")
+        buttons = [c for c in view.children if isinstance(c, discord.ui.Button)]
+        assert buttons[0].label == "✅ Approve Restart"
+
+    @pytest.mark.asyncio
+    async def test_button_click_sets_event(self) -> None:
+        """Clicking the button sets the approved event and disables the button."""
+        approved = asyncio.Event()
+        view = UpgradeApprovalView(approved_event=approved, bot_id=None)
+        button = next(c for c in view.children if isinstance(c, discord.ui.Button))
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.user = MagicMock()
+        interaction.user.id = 42
+        interaction.response = AsyncMock()
+        interaction.response.edit_message = AsyncMock()
+
+        # _ViewCallback wraps the decorated method; invoke with just (interaction).
+        await button.callback(interaction)
+
+        assert approved.is_set()
+        assert button.disabled is True
+        interaction.response.edit_message.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_bot_click_is_ignored(self) -> None:
+        """Bot's own click is deferred without setting the event."""
+        approved = asyncio.Event()
+        bot_id = 999
+        view = UpgradeApprovalView(approved_event=approved, bot_id=bot_id)
+        button = next(c for c in view.children if isinstance(c, discord.ui.Button))
+
+        interaction = MagicMock(spec=discord.Interaction)
+        interaction.user = MagicMock()
+        interaction.user.id = bot_id  # same as bot
+        interaction.response = AsyncMock()
+        interaction.response.defer = AsyncMock()
+
+        await button.callback(interaction)
+
+        assert not approved.is_set()
+        interaction.response.defer.assert_awaited_once()
+
+
+class TestApprovalButton:
+    """Integration tests for button-based approval in _wait_for_approval."""
+
+    def _make_cog(self, bot: MagicMock) -> AutoUpgradeCog:
+        config = UpgradeConfig(
+            package_name="pkg",
+            restart_command=["sudo", "systemctl", "restart", "bot.service"],
+            working_dir="/tmp",
+            restart_approval=True,
+        )
+        return AutoUpgradeCog(bot=bot, config=config)
+
+    def _make_thread_with_parent(self) -> tuple[MagicMock, MagicMock]:
+        """Return (thread, parent_channel) where parent.send is an AsyncMock."""
+        parent = MagicMock(spec=discord.TextChannel)
+        parent.send = AsyncMock(return_value=MagicMock(spec=discord.Message, delete=AsyncMock()))
+
+        thread = MagicMock(spec=discord.Thread)
+        thread.send = AsyncMock()
+        thread.parent = parent
+
+        approval_msg = MagicMock()
+        approval_msg.id = 99999
+        approval_msg.add_reaction = AsyncMock()
+        thread.send.return_value = approval_msg
+
+        return thread, parent
+
+    @pytest.mark.asyncio
+    async def test_button_approval_posts_to_parent_channel(self, bot: MagicMock) -> None:
+        """When thread has a parent channel, a button message is posted there."""
+        cog = self._make_cog(bot)
+        thread, parent = self._make_thread_with_parent()
+
+        bot.user = MagicMock()
+        bot.user.id = 1
+
+        async def capture_and_hang(*args, **kwargs):
+            # block until test sets the event externally
+            await asyncio.sleep(10)  # will be cancelled
+
+        bot.wait_for = AsyncMock(side_effect=capture_and_hang)
+
+        async def run_and_inject() -> None:
+            # Give _wait_for_approval time to create the view and post to parent
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+            # Find the UpgradeApprovalView that was sent to the parent channel
+            call_kwargs = parent.send.call_args
+            if call_kwargs is not None:
+                view = call_kwargs.kwargs.get("view") or (
+                    call_kwargs.args[1] if len(call_kwargs.args) > 1 else None
+                )
+                if isinstance(view, UpgradeApprovalView):
+                    view._event.set()
+
+        task = asyncio.create_task(run_and_inject())
+        await cog._wait_for_approval(MagicMock(), thread)
+        await task
+
+        # button message was posted to the parent channel
+        parent.send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_button_approval_resolves_without_reaction(self, bot: MagicMock) -> None:
+        """Button click alone (no reaction) grants approval and posts confirmation."""
+        cog = self._make_cog(bot)
+        thread, parent = self._make_thread_with_parent()
+
+        bot.user = MagicMock()
+        bot.user.id = 1
+
+        # Reaction never fires (hangs until cancelled)
+        async def hang(*args, **kwargs):
+            await asyncio.sleep(60)
+
+        bot.wait_for = AsyncMock(side_effect=hang)
+
+        # Inject button click after setup
+        async def click_button() -> None:
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+            call = parent.send.call_args
+            if call is not None:
+                view = call.kwargs.get("view") or (call.args[1] if len(call.args) > 1 else None)
+                if isinstance(view, UpgradeApprovalView):
+                    view._event.set()
+
+        task = asyncio.create_task(click_button())
+        await cog._wait_for_approval(MagicMock(), thread)
+        await task
+
+        # Final confirmation sent to thread
+        thread.send.assert_any_call("👍 Restart approved!")
+
+    @pytest.mark.asyncio
+    async def test_channel_message_deleted_after_approval(self, bot: MagicMock) -> None:
+        """The channel button message is deleted after approval is granted."""
+        cog = self._make_cog(bot)
+        thread, parent = self._make_thread_with_parent()
+
+        bot.user = MagicMock()
+        bot.user.id = 1
+
+        reaction_event = MagicMock()
+        reaction_event.message_id = 99999
+        reaction_event.emoji = "✅"
+        reaction_event.user_id = 42
+        bot.wait_for = AsyncMock(return_value=reaction_event)
+
+        await cog._wait_for_approval(MagicMock(), thread)
+
+        # The channel message should have been deleted
+        channel_msg = parent.send.return_value
+        channel_msg.delete.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_no_parent_channel_still_works(self, bot: MagicMock) -> None:
+        """When thread.parent is None (or not Messageable), approval still works via reaction."""
+        cog = self._make_cog(bot)
+        thread = MagicMock(spec=discord.Thread)
+        thread.parent = None
+        thread.send = AsyncMock()
+        approval_msg = MagicMock()
+        approval_msg.id = 99999
+        approval_msg.add_reaction = AsyncMock()
+        thread.send.return_value = approval_msg
+
+        bot.user = MagicMock()
+        bot.user.id = 1
+        reaction_event = MagicMock()
+        reaction_event.message_id = 99999
+        reaction_event.emoji = "✅"
+        reaction_event.user_id = 42
+        bot.wait_for = AsyncMock(return_value=reaction_event)
+
+        await cog._wait_for_approval(MagicMock(), thread)
+
+        thread.send.assert_any_call("👍 Restart approved!")

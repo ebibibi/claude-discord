@@ -13,6 +13,7 @@ Security design:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -27,6 +28,54 @@ logger = logging.getLogger(__name__)
 
 # Default timeout for each subprocess step (seconds).
 _STEP_TIMEOUT = 120
+
+
+class UpgradeApprovalView(discord.ui.View):
+    """A Discord View with a single approval button for upgrade/restart gates.
+
+    Posts to the parent channel (not the upgrade thread) so users can approve
+    from the bottom of the channel without scrolling up to find the thread.
+
+    Usage::
+
+        approved = asyncio.Event()
+        view = UpgradeApprovalView(approved_event=approved, bot_id=bot.user.id)
+        channel_msg = await channel.send("Approve restart?", view=view)
+        await approved.wait()           # blocks until button clicked
+        await channel_msg.delete()      # clean up
+
+    The same ``approved`` event can be watched in parallel with a reaction loop
+    so that *either* a reaction on the thread message *or* clicking this button
+    grants approval.
+    """
+
+    def __init__(
+        self,
+        *,
+        approved_event: asyncio.Event,
+        bot_id: int | None = None,
+        label: str = "✅ Approve",
+    ) -> None:
+        super().__init__(timeout=None)
+        self._event = approved_event
+        self._bot_id = bot_id
+        # Override the default label set by the decorator
+        for child in self.children:
+            if isinstance(child, discord.ui.Button):
+                child.label = label
+                break
+
+    @discord.ui.button(label="✅ Approve", style=discord.ButtonStyle.green)
+    async def approve(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        """Grant approval when any non-bot user clicks the button."""
+        if self._bot_id is not None and interaction.user.id == self._bot_id:
+            await interaction.response.defer()
+            return
+        button.disabled = True
+        button.label = "✅ Approved"
+        await interaction.response.edit_message(view=self)
+        self._event.set()
+        self.stop()
 
 
 @dataclass(frozen=True)
@@ -361,11 +410,12 @@ class AutoUpgradeCog(commands.Cog):
         *,
         prompt: str | None = None,
     ) -> None:
-        """Wait for a user to approve by reacting with ✅.
+        """Wait for a user to approve by reacting with ✅ or clicking a button.
 
-        Posts a notification with a ✅ reaction. When any non-bot user adds
-        the same reaction, approval is granted. Sends periodic reminders
-        every ``_drain_timeout`` seconds while waiting.
+        Posts a notification with a ✅ reaction in the upgrade thread, AND posts
+        a button message in the parent channel so users can approve without
+        scrolling up to find the thread. Either action grants approval.
+        Sends periodic reminders every ``_drain_timeout`` seconds while waiting.
 
         Args:
             status_target: Message to watch for reactions. When None (slash command
@@ -377,24 +427,74 @@ class AutoUpgradeCog(commands.Cog):
         approval_msg = await thread.send(text)
         await approval_msg.add_reaction("✅")
 
-        while True:
+        # Shared event — set by either the reaction loop or the button callback.
+        approved = asyncio.Event()
+
+        # Post a button in the parent channel so approval is always one click
+        # away at the bottom of the channel (no need to scroll up to the thread).
+        channel_msg: discord.Message | None = None
+        parent = getattr(thread, "parent", None)
+        if parent is not None:
+            bot_id = self.bot.user.id if self.bot.user else None
+            view = UpgradeApprovalView(approved_event=approved, bot_id=bot_id)
             try:
-                event = await self.bot.wait_for(
-                    "raw_reaction_add",
-                    check=lambda e: (
-                        e.message_id == approval_msg.id
-                        and str(e.emoji) == "✅"
-                        and (self.bot.user is None or e.user_id != self.bot.user.id)
-                    ),
-                    timeout=float(self._drain_timeout),
+                channel_msg = await parent.send(
+                    f"🔔 **Approval needed** — {text}\n"
+                    "(React ✅ in the upgrade thread above, or click here ↓)",
+                    view=view,
                 )
-                logger.info("Restart approved by user %s", event.user_id)
-                await thread.send("👍 Restart approved!")
-                return
-            except (TimeoutError, asyncio.TimeoutError):  # noqa: UP041 — asyncio.TimeoutError != builtins.TimeoutError on Python 3.10
-                await thread.send(
-                    "⏳ Still waiting for restart approval... React ✅ above when ready."
-                )
+            except Exception:
+                logger.debug("Could not post approval button to parent channel", exc_info=True)
+
+        # Task 1: watch for the ✅ reaction on the thread message.
+        async def _watch_reaction() -> None:
+            while not approved.is_set():
+                try:
+                    event = await self.bot.wait_for(
+                        "raw_reaction_add",
+                        check=lambda e: (
+                            e.message_id == approval_msg.id
+                            and str(e.emoji) == "✅"
+                            and (self.bot.user is None or e.user_id != self.bot.user.id)
+                        ),
+                        timeout=float(self._drain_timeout),
+                    )
+                    logger.info("Restart approved by user %s", event.user_id)
+                    approved.set()
+                except (TimeoutError, asyncio.TimeoutError):  # noqa: UP041
+                    if not approved.is_set():
+                        await thread.send(
+                            "⏳ Still waiting for restart approval... "
+                            "React ✅ above or click the button in the channel."
+                        )
+
+        # Task 2: resolve as soon as the button (or reaction) sets the event.
+        async def _watch_button() -> None:
+            await approved.wait()
+
+        reaction_task = asyncio.create_task(_watch_reaction())
+        button_task = asyncio.create_task(_watch_button())
+
+        done, pending = await asyncio.wait(
+            {reaction_task, button_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        for task in pending:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+        # Propagate unexpected exceptions from finished tasks.
+        for task in done:
+            task.result()
+
+        # Remove the channel button — it's no longer needed.
+        if channel_msg is not None:
+            with contextlib.suppress(discord.NotFound):
+                await channel_msg.delete()
+
+        await thread.send("👍 Restart approved!")
 
     async def _restart(
         self,
