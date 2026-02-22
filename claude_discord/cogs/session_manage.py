@@ -19,8 +19,9 @@ from discord.ext import commands
 
 from ..database.repository import SessionRepository
 from ..database.settings_repo import SettingsRepository
-from ..discord_ui.embeds import COLOR_INFO, COLOR_SUCCESS
+from ..discord_ui.embeds import COLOR_INFO, COLOR_SUCCESS, COLOR_TOOL
 from ..session_sync import CliSession, extract_recent_messages, scan_cli_sessions
+from ..worktree import WorktreeManager
 
 if TYPE_CHECKING:
     from ..bot import ClaudeDiscordBot
@@ -437,3 +438,163 @@ class SessionManageCog(commands.Cog):
                 chunk = candidate
         if chunk:
             await thread.send(chunk)
+
+    # ------------------------------------------------------------------
+    # Worktree commands
+    # ------------------------------------------------------------------
+
+    def _get_worktree_manager(self) -> WorktreeManager | None:
+        """Return the WorktreeManager from the bot, if configured."""
+        return getattr(self.bot, "worktree_manager", None)
+
+    @app_commands.command(
+        name="worktree-list",
+        description="List all active Claude Code session worktrees",
+    )
+    async def worktree_list(self, interaction: discord.Interaction) -> None:
+        """Show all session worktrees (branch ``session/\\d+``) and their status."""
+        wm = self._get_worktree_manager()
+        if wm is None:
+            await interaction.response.send_message(
+                "❌ Worktree manager is not configured.", ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        import asyncio
+
+        worktrees = await asyncio.to_thread(wm.find_session_worktrees)
+
+        if not worktrees:
+            await interaction.followup.send(
+                embed=discord.Embed(
+                    title="🌲 Session Worktrees",
+                    description="No session worktrees found.",
+                    color=COLOR_INFO,
+                )
+            )
+            return
+
+        from ..worktree import _is_clean  # noqa: PLC0415
+
+        embed = discord.Embed(
+            title=f"🌲 Session Worktrees ({len(worktrees)})",
+            color=COLOR_INFO,
+        )
+        for wt in worktrees:
+            clean = await asyncio.to_thread(_is_clean, wt.path)
+            status = "✅ clean" if clean else "⚠️ dirty"
+            name = f"`wt-{wt.thread_id}`"
+            value = f"Branch: `{wt.branch}`\nRepo: `{wt.main_repo or 'unknown'}`\nStatus: {status}"
+            embed.add_field(name=name, value=value, inline=False)
+
+        await interaction.followup.send(embed=embed)
+
+    @app_commands.command(
+        name="worktree-cleanup",
+        description="Remove clean orphaned session worktrees",
+    )
+    @app_commands.describe(
+        dry_run="Preview what would be removed without actually removing anything",
+    )
+    async def worktree_cleanup(
+        self,
+        interaction: discord.Interaction,
+        dry_run: bool = False,
+    ) -> None:
+        """Remove session worktrees that have no active session and are clean."""
+        wm = self._get_worktree_manager()
+        if wm is None:
+            await interaction.response.send_message(
+                "❌ Worktree manager is not configured.", ephemeral=True
+            )
+            return
+
+        await interaction.response.defer()
+
+        import asyncio
+
+        # Determine active thread IDs from the session registry
+        active_ids: set[int] = set()
+        if hasattr(self.bot, "session_registry"):
+            active_ids = {s.thread_id for s in self.bot.session_registry.list_active()}
+
+        if dry_run:
+            # Just list what would be removed
+            worktrees = await asyncio.to_thread(wm.find_session_worktrees)
+            from ..worktree import _is_clean  # noqa: PLC0415
+
+            candidates = []
+            skipped = []
+            for wt in worktrees:
+                if wt.thread_id in active_ids:
+                    skipped.append((wt, "session is active"))
+                    continue
+                clean = await asyncio.to_thread(_is_clean, wt.path)
+                if clean:
+                    candidates.append(wt)
+                else:
+                    skipped.append((wt, "dirty"))
+
+            embed = discord.Embed(
+                title="🌲 Worktree Cleanup — Dry Run",
+                color=COLOR_INFO,
+            )
+            if candidates:
+                embed.add_field(
+                    name=f"Would remove ({len(candidates)})",
+                    value="\n".join(f"`{wt.path}`" for wt in candidates) or "—",
+                    inline=False,
+                )
+            if skipped:
+                embed.add_field(
+                    name=f"Would skip ({len(skipped)})",
+                    value="\n".join(f"`{wt.path}` — {reason}" for wt, reason in skipped) or "—",
+                    inline=False,
+                )
+            if not candidates and not skipped:
+                embed.description = "No session worktrees found."
+            embed.set_footer(text="Re-run without dry_run=True to actually remove.")
+            await interaction.followup.send(embed=embed)
+            return
+
+        results = await asyncio.to_thread(wm.cleanup_orphaned, active_ids)
+
+        removed = [r for r in results if r.removed]
+        dirty = [r for r in results if not r.removed and "uncommitted changes" in r.reason]
+        other_skipped = [
+            r
+            for r in results
+            if not r.removed
+            and "uncommitted changes" not in r.reason
+            and r.reason != "session is still active"
+        ]
+
+        color = COLOR_SUCCESS if removed else COLOR_INFO
+        if dirty:
+            color = COLOR_TOOL
+
+        embed = discord.Embed(
+            title="🌲 Worktree Cleanup Complete",
+            color=color,
+        )
+        embed.add_field(
+            name=f"✅ Removed ({len(removed)})",
+            value="\n".join(f"`{r.path}`" for r in removed) or "—",
+            inline=False,
+        )
+        if dirty:
+            embed.add_field(
+                name=f"⚠️ Dirty — not removed ({len(dirty)})",
+                value="\n".join(f"`{r.path}`" for r in dirty) or "—",
+                inline=False,
+            )
+        if other_skipped:
+            embed.add_field(
+                name=f"ℹ️ Skipped ({len(other_skipped)})",
+                value="\n".join(f"`{r.path}` — {r.reason}" for r in other_skipped) or "—",
+                inline=False,
+            )
+
+        await interaction.followup.send(embed=embed)
