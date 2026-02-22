@@ -449,7 +449,13 @@ class ClaudeChatCog(commands.Cog):
                     thread=thread,
                 )
 
-            status = StatusManager(user_message)
+            async def _notify_stall() -> None:
+                await thread.send(
+                    "-# \u26a0\ufe0f No activity for 30s — could be extended thinking "
+                    "or context compression. Will resume automatically."
+                )
+
+            status = StatusManager(user_message, on_hard_stall=_notify_stall)
             await status.set_thinking()
 
             runner = self.runner.clone(thread_id=thread.id)
