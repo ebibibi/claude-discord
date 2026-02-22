@@ -211,9 +211,17 @@ class AutoUpgradeCog(commands.Cog):
             return
 
         channel = interaction.channel
-        if not isinstance(channel, discord.TextChannel):
+        # Resolve the text channel to create the upgrade thread in.
+        # Works from both a TextChannel and a Thread (use the thread's parent).
+        if isinstance(channel, discord.TextChannel):
+            text_channel: discord.TextChannel = channel
+        elif isinstance(channel, discord.Thread) and isinstance(
+            channel.parent, discord.TextChannel
+        ):
+            text_channel = channel.parent
+        else:
             await interaction.response.send_message(
-                "⚠️ This command can only be used in a text channel.",
+                "⚠️ This command can only be used in a text channel or thread.",
                 ephemeral=True,
             )
             return
@@ -221,7 +229,7 @@ class AutoUpgradeCog(commands.Cog):
         await interaction.response.defer()
 
         async with self._lock:
-            thread = await channel.create_thread(
+            thread = await text_channel.create_thread(
                 name=self.config.trigger_prefix[:100],
             )
             await self._run_pipeline(thread, status_target=None)
