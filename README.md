@@ -143,6 +143,10 @@ If the bot restarts mid-session, interrupted Claude sessions are automatically r
 - **Interactive questions** — `AskUserQuestion` renders as Discord Buttons or Select Menu; session resumes with your answer; buttons survive bot restarts
 - **Thread dashboard** — Live pinned embed showing which threads are active vs. waiting; owner @-mentioned when input is needed
 - **Token usage** — Cache hit rate and token counts shown in session-complete embed
+- **Context usage** — Context window percentage shown in session-complete embed; ⚠️ auto-compact warning at 83.5% full
+- **Compact detection** — Notifies in-thread when context compaction occurs (trigger type + token count before compact)
+- **Session interrupt** — Sending a new message to an active thread sends SIGINT to the running session and starts fresh with the new instruction; no manual `/stop` needed
+- **Hard stall notification** — Thread message after 30 s of no activity (extended thinking or context compression); resets automatically when Claude resumes
 
 ### Concurrency & Coordination
 - **Worktree instructions auto-injected** — Every session prompted to use `git worktree` before touching any file
@@ -173,6 +177,7 @@ If the bot restarts mid-session, interrupted Claude sessions are automatically r
 - **Programmatic spawn** — `POST /api/spawn` creates a new Discord thread + Claude session from any script or Claude subprocess; returns non-blocking 201 immediately after thread creation
 - **Thread ID injection** — `DISCORD_THREAD_ID` env var is passed to every Claude subprocess, enabling sessions to spawn child sessions via `$CCDB_API_URL/api/spawn`
 - **Worktree management** — `/worktree-list` shows all active session worktrees with clean/dirty status; `/worktree-cleanup` removes orphaned clean worktrees (supports `dry_run` preview)
+- **Runtime model switching** — `/model-show` displays the current global model and per-thread session model; `/model-set` changes the model for all new sessions without restart
 
 ### Security
 - **No shell injection** — `asyncio.create_subprocess_exec` only, never `shell=True`
@@ -593,7 +598,7 @@ claude_discord/
 uv run pytest tests/ -v --cov=claude_discord
 ```
 
-610+ tests covering parser, chunker, repository, runner, streaming, webhook triggers, auto-upgrade, REST API, AskUserQuestion UI, thread dashboard, scheduled tasks, session sync, AI Lounge, and startup resume.
+666+ tests covering parser, chunker, repository, runner, streaming, webhook triggers, auto-upgrade, REST API, AskUserQuestion UI, thread dashboard, scheduled tasks, session sync, AI Lounge, startup resume, model switching, and compact detection.
 
 ---
 
