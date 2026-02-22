@@ -18,6 +18,7 @@ class MessageType(Enum):
     ASSISTANT = "assistant"
     USER = "user"
     RESULT = "result"
+    PROGRESS = "progress"
 
 
 class ContentBlockType(Enum):
@@ -129,6 +130,9 @@ class StreamEvent:
     thinking: str | None = None
     has_redacted_thinking: bool = False
     ask_questions: list[AskQuestion] | None = None
+    is_compact: bool = False
+    compact_trigger: str | None = None
+    compact_pre_tokens: int | None = None
     is_complete: bool = False
     is_partial: bool = False
     cost_usd: float | None = None
@@ -136,6 +140,7 @@ class StreamEvent:
     input_tokens: int | None = None
     output_tokens: int | None = None
     cache_read_tokens: int | None = None
+    context_window: int | None = None
     error: str | None = None
 
 

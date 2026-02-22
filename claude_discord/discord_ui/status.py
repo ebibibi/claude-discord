@@ -26,6 +26,7 @@ EMOJI_DONE = "\u2705"  # ✅
 EMOJI_ERROR = "\u274c"  # ❌
 EMOJI_STALL_SOFT = "\u23f3"  # ⏳
 EMOJI_STALL_HARD = "\u26a0\ufe0f"  # ⚠️
+EMOJI_COMPACT = "\U0001f5dc\ufe0f"  # 🗜️
 
 # Tool category to emoji
 CATEGORY_EMOJI: dict[ToolCategory, str] = {
@@ -82,6 +83,11 @@ class StatusManager:
         # Hold done emoji briefly, then clean up
         await asyncio.sleep(1.5)
         await self.cleanup()
+
+    async def set_compact(self) -> None:
+        """Set status to compacting (context compression in progress)."""
+        await self._set_status(EMOJI_COMPACT)
+        self._reset_stall_timer()
 
     async def set_error(self) -> None:
         """Set status to error."""

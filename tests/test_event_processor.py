@@ -475,3 +475,48 @@ class TestFinalize:
         await p.finalize()
 
         fake_task.cancel.assert_not_called()
+
+
+class TestCompactHandling:
+    """Tests for context compaction event handling."""
+
+    @pytest.mark.asyncio
+    async def test_compact_sends_notification(self) -> None:
+        thread = MagicMock()
+        thread.send = AsyncMock(return_value=MagicMock(embeds=[]))
+        runner = MagicMock()
+        runner.interrupt = AsyncMock()
+        status = MagicMock()
+        status.set_compact = AsyncMock()
+        status.set_thinking = AsyncMock()
+        status._reset_stall_timer = MagicMock()
+        config = _make_config(thread, runner, status=status)
+        processor = EventProcessor(config)
+
+        event = StreamEvent(
+            message_type=MessageType.SYSTEM,
+            is_compact=True,
+            compact_trigger="auto",
+            compact_pre_tokens=167745,
+        )
+        await processor.process(event)
+
+        status.set_compact.assert_awaited_once()
+        # Check that a message was sent to the thread
+        calls = [str(c) for c in thread.send.call_args_list]
+        assert any("compact" in c.lower() or "\U0001f5dc" in c for c in calls)
+
+    @pytest.mark.asyncio
+    async def test_progress_resets_stall_timer(self) -> None:
+        thread = MagicMock()
+        thread.send = AsyncMock(return_value=MagicMock(embeds=[]))
+        runner = MagicMock()
+        status = MagicMock()
+        status._reset_stall_timer = MagicMock()
+        config = _make_config(thread, runner, status=status)
+        processor = EventProcessor(config)
+
+        event = StreamEvent(message_type=MessageType.PROGRESS)
+        await processor.process(event)
+
+        status._reset_stall_timer.assert_called_once()

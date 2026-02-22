@@ -122,6 +122,8 @@ class EventProcessor:
             await self._on_assistant(event)
         elif event.message_type == MessageType.USER:
             await self._on_tool_result(event)
+        elif event.message_type == MessageType.PROGRESS:
+            await self._on_progress(event)
 
         if event.is_complete:
             await self._on_complete(event)
@@ -138,7 +140,18 @@ class EventProcessor:
     # ------------------------------------------------------------------
 
     async def _on_system(self, event: StreamEvent) -> None:
-        """Handle SYSTEM events — capture session_id and post start embed."""
+        """Handle SYSTEM events — capture session_id, post start embed, compact notification."""
+        # Context compaction notification
+        if event.is_compact and self._config.status:
+            await self._config.status.set_compact()
+            pre = event.compact_pre_tokens
+            trigger = event.compact_trigger or "auto"
+            label = f"\U0001f5dc\ufe0f Context compacted ({trigger})"
+            if pre:
+                label += f" \u2014 was {pre:,} tokens"
+            with contextlib.suppress(Exception):
+                await self._config.thread.send(f"-# {label}")
+
         if not event.session_id:
             return
 
@@ -199,6 +212,11 @@ class EventProcessor:
                     )
                 )
 
+    async def _on_progress(self, event: StreamEvent) -> None:
+        """Handle PROGRESS events — reset stall timer (compact in progress)."""
+        if self._config.status:
+            self._config.status._reset_stall_timer()
+
     async def _on_complete(self, event: StreamEvent) -> None:
         """Handle RESULT events — finalize streaming, post summary embed."""
         from ..discord_ui.embeds import (
@@ -230,6 +248,7 @@ class EventProcessor:
                     event.input_tokens,
                     event.output_tokens,
                     event.cache_read_tokens,
+                    event.context_window,
                 )
             )
             if self._config.status:

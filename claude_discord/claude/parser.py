@@ -55,6 +55,8 @@ def parse_line(line: str) -> StreamEvent | None:
         _parse_user(data, event)
     elif msg_type == MessageType.RESULT:
         _parse_result(data, event)
+    elif msg_type == MessageType.PROGRESS:
+        pass  # No additional parsing needed — the event itself resets stall timers
 
     return event
 
@@ -65,6 +67,16 @@ def _parse_system(data: dict[str, Any], event: StreamEvent) -> None:
     subtype = data.get("subtype", "")
     if subtype == "init":
         logger.info("Session initialized: %s", event.session_id)
+    elif subtype == "compact_boundary":
+        event.is_compact = True
+        metadata = data.get("compactMetadata", {})
+        event.compact_trigger = metadata.get("trigger")
+        event.compact_pre_tokens = metadata.get("preTokens")
+        logger.info(
+            "Context compaction (%s) — %s tokens before compact",
+            event.compact_trigger,
+            event.compact_pre_tokens,
+        )
 
 
 def _parse_assistant(data: dict[str, Any], event: StreamEvent) -> None:
@@ -150,6 +162,13 @@ def _parse_result(data: dict[str, Any], event: StreamEvent) -> None:
         event.input_tokens = usage.get("input_tokens")
         event.output_tokens = usage.get("output_tokens")
         event.cache_read_tokens = usage.get("cache_read_input_tokens")
+
+    # Extract context window size from modelUsage (any model key).
+    model_usage = data.get("modelUsage", {})
+    for model_info in model_usage.values():
+        if isinstance(model_info, dict) and "contextWindow" in model_info:
+            event.context_window = model_info["contextWindow"]
+            break
 
     # Final text from result
     result_text = data.get("result", "")
