@@ -102,7 +102,10 @@ Claude のサブプロセスには `DISCORD_THREAD_ID` 環境変数が渡され�
 
 ### スタートアップリジューム
 
-Bot の再起動中にセッションが中断された場合、Bot が再起動したときに自動的に再開されます。セッションは `POST /api/mark-resume` でリジューム登録できます。
+Bot の再起動中にセッションが中断された場合、Bot が再起動したときに自動的に再開されます。リジューム登録の方法は 2 つあります:
+
+- **自動** — `AutoUpgradeCog` が再起動直前にアクティブなセッションをすべてスナップショットし、自動でリジューム登録します。手動操作は不要です。
+- **手動** — `POST /api/mark-resume` を直接呼び出して登録することもできます。
 
 ---
 
@@ -142,13 +145,14 @@ Bot の再起動中にセッションが中断された場合、Bot が再起動
 - **Webhook トリガー** — GitHub Actions や任意の CI/CD システムから Claude Code タスクをトリガー
 - **自動アップグレード** — 上流パッケージリリース時に Bot を自動更新
 - **DrainAware 再起動** — 再起動前にアクティブセッションの完了を待機
+- **自動リジューム登録** — 再起動前にアクティブセッションを自動でリジューム登録。Bot 再起動後に中断した作業を自動的に再開
 - **再起動承認** — アップグレード適用前の確認ゲート（オプション）
 
 ### セッション管理
 - **セッション同期** — CLI セッションを Discord スレッドにインポート（`/sync-sessions`）
 - **セッション一覧** — 起動元（Discord / CLI / 全て）と時間範囲でフィルタリング（`/sessions`）
 - **リジューム情報** — 現在のセッションをターミナルで継続する CLI コマンドを表示（`/resume-info`）
-- **スタートアップリジューム** — Bot 再起動後に中断セッションを自動再開（`POST /api/mark-resume` で登録）
+- **スタートアップリジューム** — Bot 再起動後に中断セッションを自動再開。`AutoUpgradeCog` が自動登録、または `POST /api/mark-resume` で手動登録
 - **プログラム的スポーン** — `POST /api/spawn` でスクリプトや Claude サブプロセスから新しい Discord スレッド + Claude セッションを作成。スレッド作成後すぐに非ブロッキング 201 を返す
 - **スレッド ID 注入** — すべての Claude サブプロセスに `DISCORD_THREAD_ID` 環境変数を渡し、セッションから `$CCDB_API_URL/api/spawn` で子セッションを起動可能
 - **Worktree 管理** — `/worktree-list` でアクティブなセッション Worktree を clean/dirty ステータス付きで表示、`/worktree-cleanup` で孤立した clean な Worktree を削除（`dry_run` プレビューあり）
@@ -377,7 +381,14 @@ config = UpgradeConfig(
 await bot.add_cog(AutoUpgradeCog(bot, config))
 ```
 
-再起動前に `AutoUpgradeCog` はすべてのアクティブセッションの完了を待ちます。`active_count` プロパティを持つ Cog は自動検出されてドレインされます:
+再起動前に `AutoUpgradeCog` は以下の手順を実行します:
+
+1. **アクティブセッションのスナップショット** — `_active_runners` を持つ Cog からアクティブなスレッド ID を収集（duck-typed で自動検出）。
+2. **ドレイン** — アクティブセッションが自然に完了するまで待機。
+3. **リジューム登録** — アクティブなスレッド ID を保留リジュームテーブルに保存。次回起動時に「Bot が再起動しました。前の作業の続きを確認してください」プロンプトで自動再開。
+4. **再起動** — 設定した再起動コマンドを実行。
+
+`active_count` プロパティを持つ Cog は自動検出されてドレインされます:
 
 ```python
 class MyCog(commands.Cog):
@@ -385,6 +396,8 @@ class MyCog(commands.Cog):
     def active_count(self) -> int:
         return len(self._running_tasks)
 ```
+
+セッションのリジューム登録は完全にオプトイン方式です。`setup_bridge()` でセッション DB を初期化している場合（デフォルト）に有効になります。有効な場合、セッションは `--resume` の継続性を保ちながら再開されるため、Claude Code は中断した会話を正確に再開できます。
 
 ---
 
