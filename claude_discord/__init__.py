@@ -11,6 +11,7 @@ Quick start::
 from .claude.parser import parse_line
 from .claude.runner import ClaudeRunner
 from .claude.types import MessageType, StreamEvent, ToolCategory, ToolUseEvent
+from .cog_loader import load_custom_cogs
 from .cogs.auto_upgrade import AutoUpgradeCog, UpgradeConfig
 from .cogs.claude_chat import ClaudeChatCog
 from .cogs.event_processor import EventProcessor
@@ -74,6 +75,7 @@ __all__ = [
     # Setup
     "setup_bridge",
     "BridgeComponents",
+    "load_custom_cogs",
     # UI
     "StatusManager",
     "chunk_message",

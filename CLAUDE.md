@@ -7,8 +7,8 @@ Discord frontend for Claude Code CLI. **This is a framework (OSS library), not a
 ## Framework vs Instance
 
 - **claude-code-discord-bridge** (this repo) = reusable OSS framework. No personal config, no secrets, no server-specific logic.
-- Personal instances (e.g. EbiBot) install this as a package and import the Cog. The instance repo handles server-specific config, additional Cogs, and secrets.
-- When adding features: if it's useful to anyone → add here. If it's personal workflow → add in the instance repo.
+- Personal instances (e.g. EbiBot) use the custom Cog loader (`CUSTOM_COGS_DIR` / `--cogs-dir`) to add their own Cogs. See `examples/ebibot/` for the reference implementation.
+- When adding features: if it's useful to anyone → add here. If it's personal workflow → add as a custom Cog.
 
 ### Zero-Config Principle (Critical)
 
@@ -143,7 +143,8 @@ See `.claude/skills/tdd/SKILL.md` for detailed patterns per module type.
 claude_discord/          # Installable Python package
   __init__.py            # Public API exports
   protocols.py           # Shared protocols (DrainAware)
-  main.py                # Standalone entry point
+  main.py                # Standalone entry point (setup_bridge + custom cog loader)
+  cog_loader.py          # Dynamic custom Cog loader (CUSTOM_COGS_DIR / --cogs-dir)
   bot.py                 # Discord Bot class
   cogs/
     claude_chat.py       # Main chat Cog (thread creation, message handling)
@@ -171,6 +172,9 @@ claude_discord/          # Installable Python package
   utils/
     logger.py            # Logging setup
 tests/                   # pytest test suite
+examples/
+  ebibot/                # Real-world example: personal bot with custom Cogs
+    cogs/                # ReminderCog, WatchdogCog, AutoUpgradeCog, DocsSyncCog
 pyproject.toml           # Package metadata + dependencies
 uv.lock                  # Dependency lock file
 CONTRIBUTING.md          # Contribution guidelines
@@ -183,6 +187,28 @@ CONTRIBUTING.md          # Contribution guidelines
 3. Export from `claude_discord/cogs/__init__.py`
 4. Add to `claude_discord/__init__.py` public API
 5. Write tests in `tests/test_your_cog.py`
+
+### Custom Cog Protocol (for external Cogs loaded via `--cogs-dir`)
+
+Custom Cog files are loaded by `cog_loader.py` from the directory specified by `CUSTOM_COGS_DIR` env or `--cogs-dir` CLI flag. Each `.py` file must expose:
+
+```python
+async def setup(bot, runner, components):
+    """Called by load_custom_cogs().
+
+    Args:
+        bot: discord.ext.commands.Bot instance
+        runner: ClaudeRunner (may be None if Claude chat is disabled)
+        components: BridgeComponents (session_repo, task_repo, etc.)
+    """
+    await bot.add_cog(MyCog(bot))
+```
+
+Rules:
+- Files prefixed with `_` are skipped
+- Load order is deterministic (`sorted()` by filename)
+- One Cog's failure is logged and skipped — never blocks others
+- `examples/ebibot/cogs/` is the canonical reference implementation
 
 ### Adding a New Discord UI Component
 

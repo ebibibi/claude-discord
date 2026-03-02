@@ -1,4 +1,9 @@
-"""Entry point for claude-code-discord-bridge bot."""
+"""Entry point for claude-code-discord-bridge bot.
+
+Standalone launcher that uses ``setup_bridge()`` for full Cog auto-setup
+and optionally loads custom Cogs from an external directory via
+``CUSTOM_COGS_DIR`` env or ``--cogs-dir`` CLI flag.
+"""
 
 from __future__ import annotations
 
@@ -13,11 +18,8 @@ from dotenv import load_dotenv
 
 from .bot import ClaudeDiscordBot
 from .claude.runner import ClaudeRunner
-from .cogs.claude_chat import ClaudeChatCog
-from .database.ask_repo import PendingAskRepository
-from .database.lounge_repo import LoungeRepository
-from .database.models import init_db
-from .database.repository import SessionRepository
+from .cog_loader import load_custom_cogs
+from .setup import setup_bridge
 from .utils.logger import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -50,6 +52,12 @@ def load_config() -> dict[str, str]:
         "coordination_channel_id": os.getenv("COORDINATION_CHANNEL_ID", ""),
         "dangerously_skip_permissions": os.getenv("CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS", "").lower()
         in ("true", "1", "yes"),
+        # Additional config for custom cogs and multi-channel
+        "claude_channel_ids": os.getenv("CLAUDE_CHANNEL_IDS", ""),
+        "api_host": os.getenv("API_HOST", "127.0.0.1"),
+        "api_port": os.getenv("API_PORT", ""),
+        "allowed_tools": os.getenv("CLAUDE_ALLOWED_TOOLS", ""),
+        "custom_cogs_dir": os.getenv("CUSTOM_COGS_DIR", ""),
     }
 
 
@@ -58,16 +66,21 @@ async def main() -> None:
     setup_logging()
     config = load_config()
 
-    # Initialize database
-    data_dir = Path("data")
-    data_dir.mkdir(exist_ok=True)
-    db_path = str(data_dir / "sessions.db")
-    await init_db(db_path)
+    channel_id = int(config["channel_id"])
 
-    # Create components
-    repo = SessionRepository(db_path)
-    ask_repo = PendingAskRepository(db_path)
-    lounge_repo = LoungeRepository(db_path)
+    # Parse optional multi-channel IDs
+    claude_channel_ids: set[int] | None = None
+    if config["claude_channel_ids"]:
+        claude_channel_ids = {
+            int(x.strip()) for x in config["claude_channel_ids"].split(",") if x.strip().isdigit()
+        } or None
+
+    # Parse allowed tools
+    allowed_tools: list[str] | None = None
+    if config["allowed_tools"]:
+        allowed_tools = [t.strip() for t in config["allowed_tools"].split(",") if t.strip()] or None
+
+    # Create runner
     runner = ClaudeRunner(
         command=config["claude_command"],
         model=config["claude_model"],
@@ -75,6 +88,7 @@ async def main() -> None:
         working_dir=config["claude_working_dir"] or None,
         timeout_seconds=int(config["timeout"]),
         dangerously_skip_permissions=config["dangerously_skip_permissions"],
+        allowed_tools=allowed_tools,
     )
 
     owner_id = int(config["owner_id"]) if config["owner_id"] else None
@@ -82,31 +96,52 @@ async def main() -> None:
         int(config["coordination_channel_id"]) if config["coordination_channel_id"] else None
     )
     bot = ClaudeDiscordBot(
-        channel_id=int(config["channel_id"]),
+        channel_id=channel_id,
         owner_id=owner_id,
         coordination_channel_id=coordination_channel_id,
-        ask_repo=ask_repo,
-        lounge_repo=lounge_repo,
-        lounge_channel_id=coordination_channel_id,  # lounge uses the same channel
     )
 
-    # Register cog
-    cog = ClaudeChatCog(
-        bot=bot,
-        repo=repo,
-        runner=runner,
-        max_concurrent=int(config["max_concurrent"]),
-        ask_repo=ask_repo,
-        lounge_repo=lounge_repo,
-    )
+    # Optional API server
+    api_server = None
+    if config["api_port"]:
+        from .database.notification_repo import NotificationRepository
+        from .ext.api_server import ApiServer
+
+        notification_repo = NotificationRepository("data/notifications.db")
+        await notification_repo.init_db()
+        api_server = ApiServer(
+            repo=notification_repo,
+            bot=bot,
+            default_channel_id=channel_id,
+            host=config["api_host"],
+            port=int(config["api_port"]),
+        )
 
     async with bot:
-        await bot.add_cog(cog)
+        # Full Cog auto-setup via setup_bridge
+        allowed_user_ids = {owner_id} if owner_id else None
+        components = await setup_bridge(
+            bot,
+            runner,
+            api_server=api_server,
+            allowed_user_ids=allowed_user_ids,
+            claude_channel_id=channel_id,
+            claude_channel_ids=claude_channel_ids,
+        )
+
+        # Load custom Cogs from external directory
+        cogs_dir = config["custom_cogs_dir"]
+        if cogs_dir:
+            await load_custom_cogs(Path(cogs_dir), bot, runner, components)
 
         # Cleanup old sessions on startup
-        deleted = await repo.cleanup_old(days=30)
+        deleted = await components.session_repo.cleanup_old(days=30)
         if deleted:
             logger.info("Cleaned up %d old sessions", deleted)
+
+        # Start API server if configured
+        if api_server is not None:
+            await api_server.start()
 
         # Handle signals (add_signal_handler is not supported on Windows)
         if sys.platform != "win32":

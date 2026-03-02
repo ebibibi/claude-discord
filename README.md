@@ -280,6 +280,37 @@ ccdb start --env /path/to/.env   # custom .env location
 
 Send a message in the configured channel — Claude will reply in a new thread.
 
+### Custom Cogs (Extend Without Forking)
+
+Add your own features by dropping Python files into a directory — no fork, no subclass, no package needed:
+
+```bash
+ccdb start --cogs-dir ./my-cogs/
+# Or: CUSTOM_COGS_DIR=./my-cogs ccdb start
+```
+
+Each `.py` file in the directory must expose an `async def setup(bot, runner, components)`:
+
+```python
+from discord.ext import commands
+
+class GreeterCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member):
+        channel = self.bot.get_channel(self.bot.channel_id)
+        await channel.send(f"Welcome {member.mention}!")
+
+async def setup(bot, runner, components):
+    await bot.add_cog(GreeterCog(bot))
+```
+
+Files prefixed with `_` are skipped. If one Cog fails to load, others still load normally.
+
+See [`examples/ebibot/`](examples/ebibot/) for a full real-world example with reminders, Todoist watchdog, auto-upgrade, and docs sync.
+
 ---
 
 ### Minimal Bot (Install as a Package)
@@ -415,6 +446,11 @@ In inline-reply mode, Claude's response is sent directly as a message in the cha
 | `MENTION_ONLY_CHANNEL_IDS` | Comma-separated channel IDs where the bot only responds when @mentioned | (optional) |
 | `INLINE_REPLY_CHANNEL_IDS` | Comma-separated channel IDs where the bot replies inline (no thread created) | (optional) |
 | `WORKTREE_BASE_DIR` | Base directory to scan for session worktrees (enables automatic cleanup) | (optional) |
+| `CUSTOM_COGS_DIR` | Directory containing custom Cog files to load at startup (see [Custom Cogs](#custom-cogs-extend-without-forking)) | (optional) |
+| `CLAUDE_ALLOWED_TOOLS` | Comma-separated list of allowed tools for Claude CLI | (optional) |
+| `CLAUDE_CHANNEL_IDS` | Additional channel IDs (comma-separated) for multi-channel setup | (optional) |
+| `API_HOST` | REST API bind address | `127.0.0.1` |
+| `API_PORT` | REST API port (enables REST API when set) | (optional) |
 
 ### Permission Modes — What Works in `-p` Mode
 
@@ -648,8 +684,9 @@ curl -X POST http://localhost:8080/api/tasks \
 
 ```
 claude_discord/
-  main.py                  # Standalone entry point
+  main.py                  # Standalone entry point (setup_bridge + custom cog loader)
   setup.py                 # setup_bridge() — one-call Cog wiring
+  cog_loader.py            # Dynamic custom Cog loader (CUSTOM_COGS_DIR)
   bot.py                   # Discord Bot class
   concurrency.py           # Worktree instructions + active session registry
   cogs/
@@ -696,6 +733,13 @@ claude_discord/
     api_server.py          # REST API (optional, requires aiohttp)
   utils/
     logger.py              # Logging setup
+examples/
+  ebibot/                  # Real-world example: personal bot with custom Cogs
+    cogs/
+      reminder.py          # /remind slash command + scheduled notifications
+      watchdog.py          # Todoist overdue task monitor
+      auto_upgrade.py      # Self-update via GitHub webhook
+      docs_sync.py         # Auto-translate docs on push
 ```
 
 ### Design Philosophy
@@ -715,7 +759,7 @@ claude_discord/
 uv run pytest tests/ -v --cov=claude_discord
 ```
 
-700+ tests covering parser, chunker, repository, runner, streaming, webhook triggers, auto-upgrade (including `/upgrade` slash command, thread-invocation, and approval button), REST API, AskUserQuestion UI, thread dashboard, scheduled tasks, session sync, AI Lounge, startup resume, model switching, compact detection, TodoWrite progress embeds, and permission/elicitation/plan-mode event parsing.
+840+ tests covering parser, chunker, repository, runner, streaming, webhook triggers, auto-upgrade (including `/upgrade` slash command, thread-invocation, and approval button), REST API, AskUserQuestion UI, thread dashboard, scheduled tasks, session sync, AI Lounge, startup resume, model switching, compact detection, TodoWrite progress embeds, custom Cog loader, and permission/elicitation/plan-mode event parsing.
 
 ---
 
@@ -736,7 +780,16 @@ The project started on 2026-02-18 and continues to evolve through iterative conv
 
 ## Real-World Example
 
-**[EbiBot](https://github.com/ebibibi/discord-bot)** — A personal Discord bot built on this framework. Includes automated documentation sync (English + Japanese), push notifications, Todoist watchdog, scheduled health checks, and GitHub Actions CI/CD. Use it as a reference for building your own bot.
+**[`examples/ebibot/`](examples/ebibot/)** — A personal Discord bot built on this framework, included right in this repo. Demonstrates the custom Cog loader with:
+
+- **ReminderCog** — `/remind HH:MM "message"` slash command + 30-second send loop
+- **WatchdogCog** — Todoist overdue task monitor (30-minute check, daily dedup, severity-based alerts)
+- **AutoUpgradeCog** — Self-updating via GitHub webhook + systemctl restart
+- **DocsSyncCog** — Auto-translate documentation on push via webhook
+
+Run it with: `ccdb start --cogs-dir examples/ebibot/cogs/`
+
+> The EbiBot custom Cogs were previously maintained in a [separate repository](https://github.com/ebibibi/discord-bot). They are now co-located here so Claude Code always has full context of both the framework and the customizations — preventing accidental feature duplication.
 
 ---
 

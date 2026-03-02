@@ -387,12 +387,21 @@ def main() -> None:
         metavar="PATH",
         help="Path to the .env file (default: .env)",
     )
+    start_parser.add_argument(
+        "--cogs-dir",
+        default=None,
+        metavar="DIR",
+        help="Directory containing custom Cog files to load",
+    )
 
     args = parser.parse_args()
 
     if args.command == "setup":
         cmd_setup(Path(args.env))
     elif args.command == "start":
+        cogs_dir = getattr(args, "cogs_dir", None)
+        if cogs_dir:
+            os.environ["CUSTOM_COGS_DIR"] = cogs_dir
         cmd_start(Path(args.env))
     else:
         parser.print_help()
