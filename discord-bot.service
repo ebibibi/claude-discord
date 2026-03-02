@@ -1,0 +1,23 @@
+[Unit]
+Description=EbiBot Discord Bot (ccdb)
+After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=ebi
+WorkingDirectory=/home/ebi/claude-code-discord-bridge
+EnvironmentFile=/home/ebi/claude-code-discord-bridge/.env
+ExecStartPre=/home/ebi/claude-code-discord-bridge/scripts/pre-start.sh
+ExecStart=/home/ebi/claude-code-discord-bridge/.venv/bin/python -m claude_discord.main
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+ProtectSystem=strict
+ReadWritePaths=/home/ebi /tmp /var/tmp
+
+[Install]
+WantedBy=multi-user.target
