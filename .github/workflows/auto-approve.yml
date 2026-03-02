@@ -10,8 +10,7 @@ jobs:
     # Skip draft PRs — only auto-merge when the PR is explicitly marked ready.
     # This prevents the race condition where auto-merge fires on the first
     # commit before subsequent commits have been pushed.
-    # Auto-approve PRs from: owner (ebibibi) OR github-actions[bot] (version bump PRs).
-    if: (github.event.pull_request.user.login == 'ebibibi' || github.event.pull_request.user.login == 'github-actions[bot]') && github.event.pull_request.draft == false
+    if: github.event.pull_request.user.login == 'ebibibi' && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -67,8 +66,8 @@ jobs:
                 echo "Skipping docs-sync: excluded branch ($HEAD_REF)"
               fi
 
-              # --- Version bump dispatch (skip for docs-sync and auto-bump PRs) ---
-              if [[ "$HEAD_REF" != docs-sync/* ]] && [[ "$PR_TITLE" != '[docs-sync]'* ]] && [[ "$HEAD_REF" != auto/bump-* ]] && [[ "$PR_TITLE" != *'[skip bump]'* ]]; then
+              # --- Version bump dispatch (skip for docs-sync PRs) ---
+              if [[ "$HEAD_REF" != docs-sync/* ]] && [[ "$PR_TITLE" != '[docs-sync]'* ]]; then
                 echo "Dispatching pr-merged event for version bump..."
                 DISPATCH_PAYLOAD=$(jq -c -n \
                   --arg event_type "pr-merged" \
@@ -79,7 +78,7 @@ jobs:
                   --method POST \
                   --input -
               else
-                echo "Skipping version bump: excluded PR ($HEAD_REF)"
+                echo "Skipping version bump: docs-sync PR ($HEAD_REF)"
               fi
 
               exit 0
