@@ -8,6 +8,8 @@
 
 Open Claude Code from your smartphone's Discord app, spin up multiple threads, and run parallel development sessions — all without touching a keyboard. Each Discord thread becomes a fully isolated Claude Code session. Work on a feature in one thread, review a PR in another, and run a background task in a third — simultaneously. The bridge handles all the coordination so sessions never clobber each other.
 
+**No API key required. No per-token billing.** ccdb runs on top of Claude Code CLI, which is included with your [Claude Pro/Max subscription](https://claude.ai/pricing) — a flat monthly fee with no usage surprises. Unlike API-based integrations that charge per token, ccdb lets your whole team use Claude through Discord at predictable cost.
+
 **[日本語](docs/ja/README.md)** | **[简体中文](docs/zh-CN/README.md)** | **[한국어](docs/ko/README.md)** | **[Español](docs/es/README.md)** | **[Português](docs/pt-BR/README.md)** | **[Français](docs/fr/README.md)**
 
 > **Disclaimer:** This project is not affiliated with, endorsed by, or officially connected to Anthropic. "Claude" and "Claude Code" are trademarks of Anthropic, PBC. This is an independent open-source tool that interfaces with the Claude Code CLI.
@@ -698,7 +700,7 @@ claude_discord/
 
 ### Design Philosophy
 
-- **CLI spawn, not API** — Invokes `claude -p --output-format stream-json`, giving full Claude Code features (CLAUDE.md, skills, tools, memory) without reimplementing them
+- **CLI spawn, not API** — Invokes `claude -p --output-format stream-json`, giving full Claude Code features (CLAUDE.md, skills, tools, memory) without reimplementing them. Runs on your Claude Pro/Max subscription — no API key, no per-token billing
 - **Concurrency first** — Multiple simultaneous sessions are the expected case, not an edge case; every session gets worktree instructions, the registry and coordination channel handle the rest
 - **Discord as glue** — Discord provides UI, threading, reactions, webhooks, and persistent notifications; no custom frontend needed
 - **Framework, not application** — Install as a package, add Cogs to your existing bot, configure via code
