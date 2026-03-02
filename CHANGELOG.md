@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Silent exception suppression** — replaced `contextlib.suppress(Exception)` with proper logging + narrowed exception types so errors are visible in logs (#216)
+- **Pyright type errors in `main.py`** — `load_config()` return type was `dict[str, str]` but `dangerously_skip_permissions` was a `bool`; moved bool conversion to call site (#223)
+- **Branch protection**: added required CI status checks (`test (ubuntu-latest, 3.10/3.11/3.12)`) so PRs with failing CI can no longer be merged
 
 ## [1.7.5] - 2026-03-02
 
