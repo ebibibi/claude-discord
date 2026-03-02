@@ -137,6 +137,40 @@ class TestLoadConfig:
         assert isinstance(config["dangerously_skip_permissions"], str)
 
 
+class TestAllowedToolsParsing:
+    """Tests for CLAUDE_ALLOWED_TOOLS env var parsing in main()."""
+
+    def _parse_allowed_tools(self, env_value: str) -> list[str] | None:
+        """Replicate the parsing logic from main() for unit testing."""
+        if not env_value:
+            return None
+        return [t.strip() for t in env_value.split(",") if t.strip()] or None
+
+    def test_comma_separated(self) -> None:
+        result = self._parse_allowed_tools("Bash,Read,Write")
+        assert result == ["Bash", "Read", "Write"]
+
+    def test_whitespace_trimmed(self) -> None:
+        result = self._parse_allowed_tools("Bash , Read , Write")
+        assert result == ["Bash", "Read", "Write"]
+
+    def test_empty_string_returns_none(self) -> None:
+        result = self._parse_allowed_tools("")
+        assert result is None
+
+    def test_only_commas_returns_none(self) -> None:
+        result = self._parse_allowed_tools(",,,")
+        assert result is None
+
+    def test_single_tool(self) -> None:
+        result = self._parse_allowed_tools("Bash")
+        assert result == ["Bash"]
+
+    def test_trailing_comma(self) -> None:
+        result = self._parse_allowed_tools("Bash,Read,")
+        assert result == ["Bash", "Read"]
+
+
 class TestExampleCogImports:
     """Verify that example cog files can be imported and have setup()."""
 
