@@ -39,11 +39,16 @@ jobs:
           for i in $(seq 1 30); do
             STATE=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json state -q .state)
             if [ "$STATE" = "MERGED" ]; then
-              echo "PR merged! Sending upgrade webhook..."
-              curl -s -o /dev/null -w "%{http_code}" \
-                -H "Content-Type: application/json" \
-                -d '{"content":"🔄 ebibot-upgrade"}' \
-                "$WEBHOOK_URL"
+              # --- EbiBot upgrade webhook (skip for docs-sync and auto-bump PRs) ---
+              if [[ "$HEAD_REF" != docs-sync/* ]] && [[ "$PR_TITLE" != '[docs-sync]'* ]] && [[ "$HEAD_REF" != auto/bump-* ]]; then
+                echo "PR merged! Sending upgrade webhook..."
+                curl -s -o /dev/null -w "%{http_code}" \
+                  -H "Content-Type: application/json" \
+                  -d '{"content":"🔄 ebibot-upgrade"}' \
+                  "$WEBHOOK_URL"
+              else
+                echo "Skipping upgrade: docs-sync or auto-bump PR ($HEAD_REF)"
+              fi
 
               # --- Docs-sync webhook (skip for docs-sync and auto-bump PRs) ---
               if [[ "$HEAD_REF" != docs-sync/* ]] && [[ "$PR_TITLE" != '[docs-sync]'* ]] && [[ "$HEAD_REF" != auto/bump-* ]]; then
