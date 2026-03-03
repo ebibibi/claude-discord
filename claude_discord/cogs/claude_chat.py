@@ -500,12 +500,12 @@ class ClaudeChatCog(commands.Cog):
                     session_id=session_id,
                     reason="bot_shutdown",
                     resume_prompt=(
-                        "ボットが再起動しました。"
-                        "前の作業の状況を確認して、何をしていたかを報告してください。"
-                        "⚠️ コンテキストの圧縮により、計画済みタスクの承認状態が"
-                        "失われている可能性があります。"
-                        "コード変更・コミット・PR作成などの実装作業を再開する前に、"
-                        "必ずユーザーに改めて確認を取ってください。"
+                        "The bot restarted. "
+                        "Please report what you were working on before resuming. "
+                        "⚠️ Context may have been compressed, which means the approval status of "
+                        "planned tasks could be lost. "
+                        "Before making any code changes, commits, or PRs, "
+                        "re-confirm with the user that they want you to proceed."
                     ),
                 )
                 logger.info(
@@ -569,12 +569,12 @@ class ClaudeChatCog(commands.Cog):
                 continue
 
             resume_prompt = entry.resume_prompt or (
-                "ボットが再起動から復帰しました。"
-                "前の作業の状況を確認して、何をしていたかを報告してください。"
-                "⚠️ コンテキストの圧縮により、計画済みタスクの承認状態が"
-                "失われている可能性があります。"
-                "コード変更・コミット・PR作成などの実装作業を再開する前に、"
-                "必ずユーザーに改めて確認を取ってください。"
+                "The bot restarted. "
+                "Please report what you were working on before resuming. "
+                "⚠️ Context may have been compressed, which means the approval status of "
+                "planned tasks could be lost. "
+                "Before making any code changes, commits, or PRs, "
+                "re-confirm with the user that they want you to proceed."
             )
 
             logger.info(
@@ -585,9 +585,7 @@ class ClaudeChatCog(commands.Cog):
             )
             try:
                 # Post directly into the existing thread — no new thread needed
-                seed_message = await thread.send(
-                    f"🔄 **Bot が再起動から復帰しました。**\n{resume_prompt}"
-                )
+                seed_message = await thread.send(f"🔄 **Bot restarted.**\n{resume_prompt}")
                 asyncio.create_task(
                     self._run_claude(
                         seed_message,

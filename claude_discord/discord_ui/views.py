@@ -123,15 +123,15 @@ class ToolResultView(discord.ui.View):
         self._full_content = full_content
         self._expanded = False
 
-    @discord.ui.button(label="展開 ▼", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Expand ▼", style=discord.ButtonStyle.secondary)
     async def toggle(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         """Toggle between collapsed (preview) and expanded (full) output."""
         self._expanded = not self._expanded
         if self._expanded:
-            button.label = "折りたたむ ▲"
+            button.label = "Collapse ▲"
             embed = tool_result_embed(self._tool_title, self._full_content)
         else:
-            button.label = "展開 ▼"
+            button.label = "Expand ▼"
             embed = tool_result_preview_embed(self._tool_title, self._full_content)
         await interaction.response.edit_message(embed=embed, view=self)
 

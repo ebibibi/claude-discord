@@ -388,8 +388,12 @@ class AutoUpgradeCog(commands.Cog):
                     session_id=session_id,
                     reason="bot_upgrade",
                     resume_prompt=(
-                        "ボットがパッケージアップグレードのため再起動しました。"
-                        "前の作業の続きを確認し、必要な残作業があれば完了してください。"
+                        "The bot restarted after a package upgrade. "
+                        "Please report what you were working on before resuming. "
+                        "⚠️ Context may have been compressed, which means the approval status of "
+                        "planned tasks could be lost. "
+                        "Before making any code changes, commits, or PRs, "
+                        "re-confirm with the user that they want you to proceed."
                     ),
                 )
                 marked += 1

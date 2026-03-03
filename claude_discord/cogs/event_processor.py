@@ -71,7 +71,7 @@ async def _send_attachment_requests(
 # Sized to show ~30 lines of typical output (100 chars/line × 30 = 3000).
 # The embed description limit is 4096, so this leaves room for code block markers.
 _TOOL_RESULT_MAX_CHARS = 3000
-# Lines of output shown inline before the "展開 ▼" button appears.
+# Lines of output shown inline before the "Expand ▼" button appears.
 # 1 means single-line results are shown flat; 2+ lines get a collapse button.
 _COLLAPSED_LINES = 1
 

@@ -23,16 +23,16 @@ logger = logging.getLogger(__name__)
 ClassifyResult = Literal["waiting", "done", "ambiguous"]
 
 _PROMPT_TEMPLATE = """\
-以下はAIアシスタントが送った最後のメッセージです。
-このメッセージを送った後、AIはユーザーからの返信を期待していますか？
+Below is the last message sent by an AI assistant.
+After sending this message, does the AI expect a reply from the user?
 
-【メッセージ】
+[MESSAGE]
 {text}
 
-次の3択から1単語だけで答えてください（他の文字は一切不要）:
-- waiting  : ユーザーの返信・確認・操作が必要
-- done     : タスクが完了しており返信は不要
-- ambiguous: どちらとも判断できない
+Reply with exactly one word — no other text:
+- waiting  : user reply, confirmation, or action is required
+- done     : the task is complete and no reply is needed
+- ambiguous: cannot be determined from the message alone
 """
 
 _VALID = frozenset({"waiting", "done", "ambiguous"})

@@ -13,43 +13,43 @@ from .database.lounge_repo import LoungeMessage
 # The invitation block tells Claude *what* the lounge is, *how* to post,
 # and sets the expectation that posting at session start is mandatory.
 _LOUNGE_INVITE = """\
-[AI LOUNGE — 控え室へようこそ]
+[AI LOUNGE — welcome to the breakroom]
 
-ここは「AI Lounge（控え室）」。複数のClaudeセッションが同時に作業するとき、
-お互いに状況を伝え合えるDiscordチャンネルです。人間も見ています。
+This is the AI Lounge — a shared space where concurrent Claude sessions
+leave notes for each other and for the humans watching the Discord channel.
 
-【必須】作業を始める前に、まずラウンジに一言投稿してください。
-これが「セッション開始通知」の代わりです。何をするかを自分の言葉で、短く。
+[REQUIRED] Before starting any work, post a one-liner to the lounge.
+This is your session-start announcement. Keep it short and in your own words.
 
-例:
-- 「今からXXXリポジトリのバグ調査するよ。ちょっと複雑そう」
-- 「PRレビュー依頼来てたのでチェックしてきます」
-- 「テストが全部落ちてる… 何が起きたんだろ」
-- 「設定ファイル直すだけなのでサクッと終わらせます」
+Examples:
+- "Investigating a bug in the XXX repo. Looks a bit tricky."
+- "PR review request came in, heading over to check it."
+- "All tests are failing... figuring out what happened."
+- "Just fixing a config file, should be quick."
 
-作業が終わったら感想も一言どうぞ（終了通知にもなる）:
-- 「できた！テストも全部通った」「思ったより時間かかった…」
+When you finish, leave a closing note too (this serves as your session-end signal):
+- "Done! All tests passing." / "Took longer than expected..."
 
-投稿コマンド:
+Post command:
 ```bash
 curl -s -X POST "$CCDB_API_URL/api/lounge" \\
   -H "Content-Type: application/json" \\
-  -d '{"message": "ここに一言", "label": "自分のニックネーム"}'
+  -d '{"message": "your note here", "label": "your nickname"}'
 ```
 
-ラベルは自由。例：「バグハンター」「夜の助っ人」「フロント担当」「慎重派」
+Labels are free-form. Examples: "bug-hunter", "night-shift", "frontend", "careful"
 
-【破壊的操作の前に必ずラウンジを読め】
-Botの再起動・force push・DB操作など「全セッションに影響する操作」をする前に:
-1. 下記の「最近のラウンジのメッセージ」を確認する
-2. 他のセッションが作業中であれば、完了を待つか、ラウンジに予告してから実行する
-3. 問題ない場合のみ実行し、実行前後にラウンジへ報告する
+[READ BEFORE DESTRUCTIVE OPERATIONS]
+Before bot restarts, force pushes, DB operations, or anything that affects all sessions:
+1. Check the recent lounge messages below
+2. If another session is actively working, wait for it to finish or announce your intent
+3. Only proceed if the coast is clear — report before and after
 
-これがAI Loungeの最重要用途。書くだけでなく、読んで判断することが目的。
+This is the lounge's most critical use. Read it to make decisions, not just to write.
 """
 
-_RECENT_HEADER = "\n最近のラウンジのメッセージ:\n"
-_NO_MESSAGES = "\n（まだ誰もいない。あなたが最初の一言を残してみて！）\n"
+_RECENT_HEADER = "\nRecent lounge messages:\n"
+_NO_MESSAGES = "\n(No messages yet — be the first to say hello!)\n"
 _INVITE_CLOSE = "\n---\n"
 
 
