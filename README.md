@@ -209,6 +209,7 @@ If the bot restarts mid-session, interrupted Claude sessions are automatically r
 - **Flag injection prevention** — `--` separator before all prompts
 - **Secret isolation** — Bot token stripped from subprocess environment
 - **User authorization** — `allowed_user_ids` restricts who can invoke Claude
+- **Log injection prevention** — User-provided API values are sanitized (newlines stripped) before writing to logs
 
 ---
 
