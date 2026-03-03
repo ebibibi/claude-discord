@@ -176,6 +176,8 @@ Si le bot redémarre en cours de session, les sessions Claude interrompues repre
 - **Création programmatique** — `POST /api/spawn` crée un nouveau fil Discord + session Claude depuis n'importe quel script ou sous-processus Claude ; retourne un 201 non bloquant immédiatement après la création du fil
 - **Injection d'ID de fil** — La variable d'environnement `DISCORD_THREAD_ID` est passée à chaque sous-processus Claude, permettant aux sessions de créer des sessions enfants via `$CCDB_API_URL/api/spawn`
 - **Gestion des worktrees** — `/worktree-list` affiche tous les worktrees de session actifs avec leur statut propre/sale ; `/worktree-cleanup` supprime les worktrees propres orphelins (supporte la prévisualisation avec `dry_run`)
+- **Rembobiner la conversation** — `/rewind` réinitialise l'historique des échanges tout en conservant les fichiers de travail créés par Claude ; utile quand une session part dans une mauvaise direction
+- **Bifurquer la conversation** — `/fork` crée un nouveau fil qui continue depuis le même état de session, vous permettant d'explorer une direction différente sans affecter le fil original
 
 ### Sécurité
 - **Pas d'injection shell** — Uniquement `asyncio.create_subprocess_exec`, jamais `shell=True`

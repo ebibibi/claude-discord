@@ -176,6 +176,8 @@ Si el bot se reinicia a mitad de sesión, las sesiones de Claude interrumpidas s
 - **Creación programática** — `POST /api/spawn` crea un nuevo hilo de Discord + sesión de Claude desde cualquier script o subproceso de Claude; devuelve un 201 no bloqueante inmediatamente tras la creación del hilo
 - **Inyección de ID de hilo** — La variable de entorno `DISCORD_THREAD_ID` se pasa a cada subproceso de Claude, permitiendo que las sesiones creen sesiones hijas via `$CCDB_API_URL/api/spawn`
 - **Gestión de worktrees** — `/worktree-list` muestra todos los worktrees de sesión activos con estado limpio/sucio; `/worktree-cleanup` elimina worktrees limpios huérfanos (admite vista previa con `dry_run`)
+- **Rebobinar conversación** — `/rewind` restablece el historial de conversación manteniendo los archivos de trabajo que Claude creó; útil cuando una sesión se ha desviado
+- **Bifurcar conversación** — `/fork` crea un nuevo hilo que continúa desde el mismo estado de sesión, permitiéndote explorar una dirección diferente sin afectar el hilo original
 
 ### Seguridad
 - **Sin inyección de shell** — Solo `asyncio.create_subprocess_exec`, nunca `shell=True`
