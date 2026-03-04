@@ -138,6 +138,7 @@ If the bot restarts mid-session, interrupted Claude sessions are automatically r
 - **Concurrent sessions** — Multiple parallel sessions with configurable limit
 - **Stop without clearing** — `/stop` halts a session while preserving it for resume
 - **Session interrupt** — Sending a new message to an active thread sends SIGINT to the running session and starts fresh with the new instruction; no manual `/stop` needed
+- **Auto-rename threads** — When `THREAD_AUTO_RENAME=true`, each new thread is automatically renamed with a Claude-generated title derived from the first message (background task, never delays session start)
 
 #### 📡 Real-time Feedback
 - **Real-time status** — Emoji reactions: 🧠 thinking, 🛠️ reading files, 💻 editing, 🌐 web search
@@ -485,6 +486,7 @@ In inline-reply mode, Claude's response is sent directly as a message in the cha
 | `CLAUDE_ALLOWED_TOOLS` | Comma-separated list of allowed tools for Claude CLI | (optional) |
 | `CLAUDE_CHANNEL_IDS` | Additional channel IDs (comma-separated) for multi-channel setup | (optional) |
 | `THREAD_INBOX_ENABLED` | Enable the persistent thread inbox (classifies sessions as `waiting`/`done`/`ambiguous` via `claude -p`; shown in thread dashboard) | `false` |
+| `THREAD_AUTO_RENAME` | Auto-rename new thread titles using Claude AI — generates a short, descriptive title from the first user message via a background `claude -p` call (never delays session start) | `false` |
 | `API_HOST` | REST API bind address | `127.0.0.1` |
 | `API_PORT` | REST API port (enables REST API when set) | (optional) |
 
@@ -786,6 +788,7 @@ claude_discord/
     elicitation_view.py    # Discord UI for MCP elicitation (Modal form or URL button)
     file_sender.py         # File delivery via .ccdb-attachments
     inbox_classifier.py    # classify() — lightweight claude -p call to label sessions
+    thread_renamer.py      # suggest_title() — background claude -p call for auto thread naming
   ext/
     api_server.py          # REST API (optional, requires aiohttp)
   utils/

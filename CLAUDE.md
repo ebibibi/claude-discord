@@ -194,6 +194,7 @@ claude_discord/          # Installable Python package
     permission_view.py   # Allow/Deny buttons for tool permission requests
     elicitation_view.py  # Discord UI for MCP elicitation
     file_sender.py       # File delivery via .ccdb-attachments
+    thread_renamer.py    # suggest_title() — background claude -p call for auto thread renaming
   ext/
     api_server.py        # REST API server (optional, requires aiohttp)
   utils/

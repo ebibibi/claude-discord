@@ -139,6 +139,7 @@ Bot の再起動中にセッションが中断された場合、Bot が再起動
 - **並行セッション** — 設定可能な上限での複数並行セッション
 - **削除せず停止** — `/stop` でセッションを保持したまま停止し、リジューム可能
 - **セッション割り込み** — アクティブなスレッドに新しいメッセージを送ると実行中のセッションに SIGINT を送り、新しい指示で即座に再開。手動での `/stop` 不要
+- **スレッド自動リネーム** — `THREAD_AUTO_RENAME=true` のとき、最初のメッセージをもとに Claude が生成した短いタイトルでスレッドを自動リネーム（バックグラウンドタスクのためセッション開始を遅延させない）
 
 #### 📡 リアルタイムフィードバック
 - **リアルタイムステータス** — 絵文字リアクション: 🧠 思考中、🛠️ ファイル読み取り、💻 編集中、🌐 Web 検索
@@ -384,6 +385,7 @@ INLINE_REPLY_CHANNEL_IDS=333,444
 | `INLINE_REPLY_CHANNEL_IDS` | インライン返信チャンネル ID（カンマ区切り、スレッドを作成しない） | （オプション） |
 | `WORKTREE_BASE_DIR` | セッション Worktree のスキャン対象ディレクトリ（自動クリーンアップを有効化） | （オプション） |
 | `THREAD_INBOX_ENABLED` | 永続スレッドインボックスを有効化（`claude -p` でセッションを `waiting`/`done`/`ambiguous` に分類し、スレッドダッシュボードに表示） | `false` |
+| `THREAD_AUTO_RENAME` | 新しいスレッドのタイトルを Claude AI で自動リネーム — 最初のユーザーメッセージをもとにバックグラウンドの `claude -p` 呼び出しで短く分かりやすいタイトルを生成（セッション開始を遅延させない） | `false` |
 
 ### パーミッションモード — `-p` モードで動作するもの
 
@@ -683,6 +685,7 @@ claude_discord/
     elicitation_view.py    # MCP Elicitation 用 Discord UI（Modal フォームまたは URL ボタン）
     file_sender.py         # .ccdb-attachments 経由のファイル配信
     inbox_classifier.py    # classify() — セッションにラベルを付ける軽量 claude -p 呼び出し
+    thread_renamer.py      # suggest_title() — スレッド自動リネーム用バックグラウンド claude -p 呼び出し
   ext/
     api_server.py          # REST API サーバー（オプション、aiohttp が必要）
   utils/
