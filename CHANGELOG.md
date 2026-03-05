@@ -7,8 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-03-05
+
 ### Added
-- **`/tools` slash commands** — `/tools-show`, `/tools-set`, `/tools-reset` for runtime tool permission management from Discord; no bot restart required
+- **`/tools` slash commands** — `/tools-show`, `/tools-set`, `/tools-reset` for runtime tool permission management from Discord; no bot restart required (#235)
+- **`/rewind` and `/fork` slash commands** — rewind a session to an earlier checkpoint, or fork the conversation into a new thread (#239)
+- **Thread inbox with auto-classification** — incoming messages in inbox mode are automatically categorized by Claude (`claude -p`) for smarter routing (#249)
+- **`THREAD_AUTO_RENAME`** — optionally let Claude AI rename thread titles based on session content; keeps threads self-documenting without manual effort (#257)
+- **`CLAUDE_ALLOWED_TOOLS` usage guide** — comprehensive documentation with real-world examples showing how to lock down or expand tool access per deployment (#233)
+
+### Changed
+- **All user-facing and Claude-facing strings translated to English** — system prompts, embed labels, and UI text unified in English for broader contributor accessibility (#255)
+
+### Fixed
+- **Log injection prevention** — `api_server.py` now sanitizes log messages; ANSI escape sequences and control characters in user-supplied data can no longer corrupt log output (#254)
+- **Safer bot-restart resume prompt** — after a bot restart, Claude reports its current state and asks for confirmation before continuing, rather than silently auto-resuming mid-task (#252)
+- **Duplicate user mention removed** — session-complete message no longer mentions the requester twice when both `requester_id` and the session owner are set (#244)
+- **ebibot-upgrade webhook suppressed** for docs-sync and auto-bump PRs, preventing spurious upgrade cycles that re-triggered on their own merges (#246, #247)
+- **Redundant `notify-upgrade` workflow removed** — consolidates upgrade notification into a single path (#251)
+- **`asyncio.TimeoutError` on Python 3.10** — now caught correctly everywhere; Python 3.10 raises a different exception class than 3.11+ (#260)
+- **`/tools` Ask modal feedback** — "Other" free-text modal submission now updates the prompt message immediately for visual confirmation (#238)
+
+### Security
+- **CodeQL scanning** — GitHub Actions workflow added for static analysis of Python source and Actions workflow injection vulnerabilities
+- **Command injection prevention in CI** — `notify-failure` workflow now uses `${{ env.VAR }}` instead of direct `${{ github.event.* }}` interpolation in `run:` steps, closing a shell-injection path
+
+### CI / Testing
+- **Branch coverage enforced** — `--cov-branch` flag added to CI pytest run; 75% branch coverage required as a merge gate, catching logic paths that line coverage misses (#260)
+- **Auto version bump reliability** — switched to PR-based flow with `ADMIN_PAT` to reliably bypass branch protection rulesets on direct pushes (#227, #230)
 
 ## [1.8.0] - 2026-03-02
 
@@ -224,7 +250,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI pipeline: Python 3.10/3.11/3.12, ruff, pytest
 - Branch protection and PR workflow
 
-[Unreleased]: https://github.com/ebibibi/claude-code-discord-bridge/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/ebibibi/claude-code-discord-bridge/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/ebibibi/claude-code-discord-bridge/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/ebibibi/claude-code-discord-bridge/compare/v1.7.5...v1.8.0
 [1.7.5]: https://github.com/ebibibi/claude-code-discord-bridge/compare/v1.6.0...v1.7.5
 [1.6.0]: https://github.com/ebibibi/claude-code-discord-bridge/compare/v1.5.0...v1.6.0
