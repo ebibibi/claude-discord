@@ -215,27 +215,77 @@ Bot の再起動中にセッションが中断された場合、Bot が再起動
 
 ---
 
-## クイックスタート
+## クイックスタート — 5 分で Discord に Claude を
 
-### 必要条件
+**前提条件:** Python 3.10+、[Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) のインストールと認証。
 
-- Python 3.10+
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) のインストールと認証
-- Message Content Intent が有効な Discord Bot トークン
-- [uv](https://docs.astral.sh/uv/)（推奨）または pip
-- 対応プラットフォーム: **Linux**（主要開発・テスト環境）、macOS、Windows（CI で動作確認済みだが実環境でのテストは限定的 — バグ報告歓迎）
+**対応プラットフォーム:** 主に **Linux** で開発・テストされています。macOS と Windows はサポートされ CI は通過しますが、実環境でのテストは限定的 — バグ報告歓迎。
 
-### スタンドアロン
+### Step 1 — Discord Bot の作成（一度だけ、約 2 分）
+
+1. [discord.com/developers/applications](https://discord.com/developers/applications) → **New Application**
+2. **Bot** に移動 → Privileged Gateway Intents の **Message Content Intent** を有効化
+3. Bot の **Token** をコピー
+4. **OAuth2 → URL Generator** へ: スコープ `bot` + `applications.commands`、権限: Send Messages, Create Public Threads, Send Messages in Threads, Add Reactions, Manage Messages, Read Message History
+5. 生成された URL を開いてサーバーに Bot を招待
+
+### Step 2 — セットアップウィザードを実行
+
+クローンや `.env` 編集は不要 — ウィザードがすべて行います:
 
 ```bash
+# uvx を使う場合（インストール不要）:
+uvx --from "git+https://github.com/ebibibi/claude-code-discord-bridge.git" ccdb setup
+
+# または、クローン後:
 git clone https://github.com/ebibibi/claude-code-discord-bridge.git
 cd claude-code-discord-bridge
-
-cp .env.example .env
-# .env を Bot トークンとチャンネル ID で編集
-
-uv run python -m claude_discord.main
+uv run ccdb setup
 ```
+
+ウィザードの流れ:
+1. Discord API に対して Bot トークンを検証
+2. **利用可能なチャンネルを自動一覧表示** — 番号を選ぶだけ（ID のコピー不要）
+3. 作業ディレクトリとモデルの選択
+4. `.env` を書き込み、すぐに Bot を起動するか確認
+
+```
+╔══════════════════════════════════════════════════════╗
+║          ccdb setup — interactive wizard             ║
+╚══════════════════════════════════════════════════════╝
+
+Step 1 — Claude Code CLI
+  ✅  claude found
+
+Step 2 — Discord Bot Token
+  Bot Token: [paste here]
+  Validating token… ✅  Logged in as MyBot#1234
+
+Step 3 — Discord Channel ID
+  Fetching channels via Discord API… ✅  Found 5 text channel(s)
+
+   1. #general        (My Server)
+   2. #claude-code    (My Server)
+   3. #dev            (My Server)
+   ...
+
+  Select channel [1-5]: 2
+  ✅  #claude-code (123456789012345678)
+
+  ...
+
+  ✅  Written: .env
+  Start the bot now? [Y/n]: y
+```
+
+### 起動 / 停止
+
+```bash
+ccdb start    # Bot を起動（カレントディレクトリの .env を読む）
+ccdb start --env /path/to/.env   # カスタム .env の場所を指定
+```
+
+設定したチャンネルにメッセージを送ると、Claude が新しいスレッドで返信します。
 
 ### systemd サービスとして運用（本番環境）
 
@@ -268,34 +318,83 @@ journalctl -u mybot.service -f
 
 `.env` に `DISCORD_WEBHOOK_URL` を設定すると障害通知が届きます（任意）。
 
-### パッケージとしてインストール
+### カスタム Cog（フォーク不要で機能拡張）
 
-すでに discord.py Bot を動かしている場合（Discord はトークンごとに 1 Gateway 接続のみ許可）:
+Python ファイルをディレクトリに追加するだけで独自機能を追加できます — フォーク不要、サブクラス不要、パッケージ不要:
+
+```bash
+ccdb start --cogs-dir ./my-cogs/
+# または: CUSTOM_COGS_DIR=./my-cogs ccdb start
+```
+
+ディレクトリ内の各 `.py` ファイルは `async def setup(bot, runner, components)` を公開する必要があります:
+
+```python
+from discord.ext import commands
+
+class GreeterCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member):
+        channel = self.bot.get_channel(self.bot.channel_id)
+        await channel.send(f"Welcome {member.mention}!")
+
+async def setup(bot, runner, components):
+    await bot.add_cog(GreeterCog(bot))
+```
+
+`_` で始まるファイルはスキップされます。1 つの Cog の読み込みが失敗しても、他は正常に読み込まれます。
+
+リマインダー、Todoist ウォッチドッグ、自動アップグレード、ドキュメント同期を含む実例は [`examples/ebibot/`](../../examples/ebibot/) を参照してください。
+
+---
+
+### ミニマル Bot（パッケージとしてインストール）
+
+すでに discord.py Bot を動かしている場合は、ccdb をパッケージとして追加します:
 
 ```bash
 uv add git+https://github.com/ebibibi/claude-code-discord-bridge.git
 ```
 
+`bot.py` を作成します:
+
 ```python
+import asyncio
+import os
+from dotenv import load_dotenv
+import discord
 from discord.ext import commands
 from claude_discord import ClaudeRunner, setup_bridge
 
-bot = commands.Bot(...)
-runner = ClaudeRunner(command="claude", model="sonnet")
+load_dotenv()
+
+intents = discord.Intents.default()
+intents.message_content = True
+
+bot = commands.Bot(command_prefix="!", intents=intents)
+runner = ClaudeRunner(
+    command="claude",
+    model="sonnet",
+    working_dir="/path/to/your/project",
+)
 
 @bot.event
 async def on_ready():
+    print(f"Logged in as {bot.user}")
     await setup_bridge(
         bot,
         runner,
-        claude_channel_id=YOUR_CHANNEL_ID,
-        allowed_user_ids={YOUR_USER_ID},
+        claude_channel_id=int(os.environ["DISCORD_CHANNEL_ID"]),
+        allowed_user_ids={int(os.environ["DISCORD_OWNER_ID"])},
     )
+
+asyncio.run(bot.start(os.environ["DISCORD_BOT_TOKEN"]))
 ```
 
-`setup_bridge()` はすべての Cog を自動的に配線します。ccdb に追加された新しい Cog はコード変更なしで含まれます。
-
-最新版へのアップデート:
+`setup_bridge()` はすべての Cog を自動的に配線します。最新版へのアップデート:
 
 ```bash
 uv lock --upgrade-package claude-code-discord-bridge && uv sync
@@ -384,8 +483,13 @@ INLINE_REPLY_CHANNEL_IDS=333,444
 | `MENTION_ONLY_CHANNEL_IDS` | @メンション時のみ応答するチャンネル ID（カンマ区切り） | （オプション） |
 | `INLINE_REPLY_CHANNEL_IDS` | インライン返信チャンネル ID（カンマ区切り、スレッドを作成しない） | （オプション） |
 | `WORKTREE_BASE_DIR` | セッション Worktree のスキャン対象ディレクトリ（自動クリーンアップを有効化） | （オプション） |
+| `CUSTOM_COGS_DIR` | 起動時に読み込むカスタム Cog ファイルを含むディレクトリ（[カスタム Cog](#カスタム-cogフォーク不要で機能拡張) 参照） | （オプション） |
+| `CLAUDE_ALLOWED_TOOLS` | Claude CLI に許可するツールのカンマ区切りリスト | （オプション） |
+| `CLAUDE_CHANNEL_IDS` | マルチチャンネル設定用の追加チャンネル ID（カンマ区切り） | （オプション） |
 | `THREAD_INBOX_ENABLED` | 永続スレッドインボックスを有効化（`claude -p` でセッションを `waiting`/`done`/`ambiguous` に分類し、スレッドダッシュボードに表示） | `false` |
 | `THREAD_AUTO_RENAME` | 新しいスレッドのタイトルを Claude AI で自動リネーム — 最初のユーザーメッセージをもとにバックグラウンドの `claude -p` 呼び出しで短く分かりやすいタイトルを生成（セッション開始を遅延させない） | `false` |
+| `API_HOST` | REST API バインドアドレス | `127.0.0.1` |
+| `API_PORT` | REST API ポート（設定すると REST API が有効になる） | （オプション） |
 
 ### パーミッションモード — `-p` モードで動作するもの
 
@@ -690,16 +794,23 @@ claude_discord/
     api_server.py          # REST API サーバー（オプション、aiohttp が必要）
   utils/
     logger.py              # ロギング設定
+examples/
+  ebibot/                  # 実例: カスタム Cog を使った個人 Bot
+    cogs/
+      reminder.py          # /remind スラッシュコマンド + スケジュール通知
+      watchdog.py          # Todoist 期限切れタスクモニター
+      auto_upgrade.py      # GitHub webhook 経由の自己更新
+      docs_sync.py         # push 時のドキュメント自動翻訳
 ```
 
 ### 設計思想
 
-- **CLI スポーン、API ではない** — `claude -p --output-format stream-json` を呼び出し、Claude Code の全機能（CLAUDE.md、スキル、ツール、メモリ）を利用
+- **CLI スポーン、API ではない** — `claude -p --output-format stream-json` を呼び出し、Claude Code の全機能（CLAUDE.md、スキル、ツール、メモリ）を利用。Claude Pro/Max サブスクリプションで動作 — API キー不要、トークン課金なし
 - **並行処理ファースト** — 複数の同時セッションが例外ではなく期待値。すべてのセッションに worktree 指示を注入し、レジストリと協調チャンネルが残りを処理
 - **Discord を接着剤として** — Discord が UI、スレッディング、リアクション、Webhook、永続的な通知を提供。カスタムフロントエンド不要
 - **フレームワーク、アプリケーションではない** — パッケージとしてインストールし、既存の Bot に Cog を追加し、コードで設定
 - **ゼロコード拡張性** — ソースを変更せずにスケジュールタスクと Webhook トリガーを追加
-- **シンプルさによるセキュリティ** — 約 3000 行の監査可能な Python。subprocess exec のみ、シェル展開なし
+- **シンプルさによるセキュリティ** — 約 8000 行の監査可能な Python。subprocess exec のみ、シェル展開なし
 
 ---
 
@@ -715,14 +826,14 @@ uv run pytest tests/ -v --cov=claude_discord
 
 ## このプロジェクトの構築方法
 
-**このコードベース全体は [Claude Code](https://docs.anthropic.com/en/docs/claude-code)** — Anthropic の AI コーディングエージェント — によって書かれました。人間の著者（[@ebibibi](https://github.com/ebibibi)）は自然言語で要件と方向性を提供しましたが、ソースコードを手動で読んだり編集したりしていません。
+**このコードベースは [Claude Code](https://docs.anthropic.com/en/docs/claude-code)** — Anthropic の AI コーディングエージェント — によって、[@ebibibi](https://github.com/ebibibi) の指揮のもとで開発されています。人間の著者は要件を定義し、PR をレビューし、すべての変更を承認します — 実装は Claude Code が行います。
 
 つまり:
 
-- **すべてのコードは AI 生成** — アーキテクチャ、実装、テスト、ドキュメント
-- **人間の著者はコードレベルでの正確性を保証できません** — 確信が必要な場合はソースを確認してください
+- **実装は AI 生成** — アーキテクチャ、コード、テスト、ドキュメント
+- **PR レベルでの人間によるレビューが行われています** — すべての変更は GitHub のプルリクエストと CI を経てマージされます
 - **バグレポートと PR を歓迎します** — Claude Code を使って対応することになるでしょう
-- **これは AI が著したオープンソースソフトウェアの実例です**
+- **これは人間が指揮し AI が実装するオープンソースソフトウェアの実例です**
 
 このプロジェクトは 2026-02-18 に開始され、Claude Code との反復的な会話を通じて進化し続けています。
 
@@ -730,7 +841,16 @@ uv run pytest tests/ -v --cov=claude_discord
 
 ## 実例
 
-**[EbiBot](https://github.com/ebibibi/discord-bot)** — このフレームワーク上に構築された個人 Discord Bot。自動ドキュメント同期（英語 + 日本語）、プッシュ通知、Todoist ウォッチドッグ、スケジュールヘルスチェック、GitHub Actions CI/CD を含みます。自分の Bot を構築する際のリファレンスとしてご利用ください。
+**[`examples/ebibot/`](../../examples/ebibot/)** — このフレームワーク上に構築された個人 Discord Bot がこのリポジトリに同梱されています。カスタム Cog ローダーを以下のもので実演しています:
+
+- **ReminderCog** — `/remind HH:MM "メッセージ"` スラッシュコマンド + 30 秒送信ループ
+- **WatchdogCog** — Todoist 期限切れタスクモニター（30 分チェック、デイリー重複排除、重要度別アラート）
+- **AutoUpgradeCog** — GitHub webhook + systemctl restart による自己更新
+- **DocsSyncCog** — push 時の Webhook 経由でドキュメントを自動翻訳
+
+実行方法: `ccdb start --cogs-dir examples/ebibot/cogs/`
+
+> EbiBot のカスタム Cog は以前は[別のリポジトリ](https://github.com/ebibibi/discord-bot)で管理されていましたが、現在はここに同梱されています。これにより Claude Code がフレームワークとカスタマイズの両方について完全なコンテキストを持てるようになり、機能の重複実装を防ぎます。
 
 ---
 
