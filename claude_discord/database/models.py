@@ -70,6 +70,17 @@ CREATE TABLE IF NOT EXISTS thread_inbox (
     last_message_url TEXT,
     updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
+
+-- Rate limit events emitted by the Claude Code CLI (rate_limit_event stream-json type).
+-- One row per rate_limit_type; upserted on every event so this holds the latest state.
+CREATE TABLE IF NOT EXISTS usage_stats (
+    rate_limit_type TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    utilization REAL NOT NULL,
+    resets_at INTEGER NOT NULL,
+    is_using_overage INTEGER NOT NULL DEFAULT 0,
+    recorded_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
 """
 
 # Migrations for existing databases that lack new columns.
@@ -104,6 +115,19 @@ _MIGRATIONS = [
         "confidence TEXT NOT NULL DEFAULT 'high', "
         "last_message_url TEXT, "
         "updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')))"
+    ),
+    # context stats columns added in v2.0
+    "ALTER TABLE sessions ADD COLUMN context_window INTEGER",
+    "ALTER TABLE sessions ADD COLUMN context_used INTEGER",
+    # usage_stats table added in v2.0
+    (
+        "CREATE TABLE IF NOT EXISTS usage_stats ("
+        "rate_limit_type TEXT PRIMARY KEY, "
+        "status TEXT NOT NULL, "
+        "utilization REAL NOT NULL, "
+        "resets_at INTEGER NOT NULL, "
+        "is_using_overage INTEGER NOT NULL DEFAULT 0, "
+        "recorded_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')))"
     ),
 ]
 
