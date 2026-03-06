@@ -178,8 +178,10 @@ Se o bot reiniciar no meio de uma sessão, as sessões do Claude interrompidas s
 - **Criação programática** — `POST /api/spawn` cria uma nova thread do Discord + sessão do Claude de qualquer script ou subprocesso do Claude; retorna um 201 não bloqueante imediatamente após a criação da thread
 - **Injeção de ID da thread** — A variável de ambiente `DISCORD_THREAD_ID` é passada para cada subprocesso do Claude, permitindo que sessões criem sessões filhas via `$CCDB_API_URL/api/spawn`
 - **Gerenciamento de worktree** — `/worktree-list` mostra todos os worktrees de sessão ativos com status limpo/sujo; `/worktree-cleanup` remove worktrees limpos órfãos (suporta preview com `dry_run`)
-- **Rebobinar conversa** — `/rewind` redefine o histórico de conversa mantendo os arquivos de trabalho que o Claude criou; útil quando uma sessão foi na direção errada
-- **Bifurcar conversa** — `/fork` cria uma nova thread que continua do mesmo estado de sessão, permitindo explorar uma direção diferente sem afetar a thread original
+- **Rebobinar conversa** — `/rewind` redefine o histórico de conversa mantendo os arquivos de trabalho que o Claude criou; a mensagem de confirmação mostra o % de uso do contexto no momento do reset
+- **Bifurcar conversa** — `/fork` usa `--fork-session` para criar uma nova thread que continua do mesmo estado de sessão, permitindo explorar uma direção diferente sem afetar a thread original
+- **Visibilidade do contexto** — `/context` exibe o % de uso da janela de contexto com uma barra de progresso visual; mostra aviso ⚠️ de autocompactação ao se aproximar do limite de 83.5%
+- **Monitoramento de rate limit** — `/usage` exibe a utilização do rate limit da API Claude com barra de percentual e contagem regressiva até o reset por tipo de limite
 - **Ajuda integrada** — `/help` exibe todos os comandos slash disponíveis e uso básico (efêmero, visível apenas para quem invocou)
 - **Troca de modelo em tempo de execução** — `/model-show` exibe o modelo global atual e o modelo de sessão por thread; `/model-set` altera o modelo para todas as novas sessões sem reiniciar
 - **Permissões de ferramenta em tempo de execução** — `/tools-show` exibe as ferramentas atualmente permitidas; `/tools-set` abre um menu de seleção para ativar/desativar ferramentas; `/tools-reset` reverte ao padrão do `.env` — tudo sem reiniciar
