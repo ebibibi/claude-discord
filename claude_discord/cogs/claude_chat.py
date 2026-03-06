@@ -341,23 +341,33 @@ class ClaudeChatCog(commands.Cog):
             )
             return
 
-        # Kill active runner if any — same as /clear.
-        runner = self._active_runners.get(interaction.channel.id)
-        if runner:
-            await runner.kill()
-            del self._active_runners[interaction.channel.id]
-
-        deleted = await self.repo.delete(interaction.channel.id)
-        if not deleted:
+        thread_id = interaction.channel.id
+        record = await self.repo.get(thread_id)
+        if record is None:
             await interaction.response.send_message(
                 "No active session found for this thread.", ephemeral=True
             )
             return
 
+        # Kill active runner if any — same as /clear.
+        runner = self._active_runners.get(thread_id)
+        if runner:
+            await runner.kill()
+            del self._active_runners[thread_id]
+
+        await self.repo.delete(thread_id)
+
+        # Build confirmation message, optionally including context stats.
+        ctx_suffix = ""
+        if record.context_window and record.context_used is not None:
+            pct = round(record.context_used / record.context_window * 100)
+            ctx_suffix = f" Context was **{pct}%** full at reset."
+
         await interaction.response.send_message(
-            "🔄 **Conversation reset.** "
-            "Working files are preserved — only the conversation history was cleared. "
-            "Send a new message to start a fresh session."
+            "🔄 **Conversation reset.**"
+            + ctx_suffix
+            + " Working files are preserved — only the conversation history was cleared."
+            + " Send a new message to start a fresh session."
         )
 
     @app_commands.command(
