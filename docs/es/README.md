@@ -178,8 +178,10 @@ Si el bot se reinicia a mitad de sesión, las sesiones de Claude interrumpidas s
 - **Creación programática** — `POST /api/spawn` crea un nuevo hilo de Discord + sesión de Claude desde cualquier script o subproceso de Claude; devuelve un 201 no bloqueante inmediatamente tras la creación del hilo
 - **Inyección de ID de hilo** — La variable de entorno `DISCORD_THREAD_ID` se pasa a cada subproceso de Claude, permitiendo que las sesiones creen sesiones hijas via `$CCDB_API_URL/api/spawn`
 - **Gestión de worktrees** — `/worktree-list` muestra todos los worktrees de sesión activos con estado limpio/sucio; `/worktree-cleanup` elimina worktrees limpios huérfanos (admite vista previa con `dry_run`)
-- **Rebobinar conversación** — `/rewind` restablece el historial de conversación manteniendo los archivos de trabajo que Claude creó; útil cuando una sesión se ha desviado
-- **Bifurcar conversación** — `/fork` crea un nuevo hilo que continúa desde el mismo estado de sesión, permitiéndote explorar una dirección diferente sin afectar el hilo original
+- **Rebobinar conversación** — `/rewind` restablece el historial de conversación manteniendo los archivos de trabajo que Claude creó; el mensaje de confirmación muestra el % de uso del contexto en el momento del reinicio
+- **Bifurcar conversación** — `/fork` usa `--fork-session` para crear un nuevo hilo desde el mismo estado de sesión, permitiéndote explorar una dirección diferente sin afectar el hilo original
+- **Visibilidad del contexto** — `/context` muestra el % de uso de la ventana de contexto con una barra de progreso visual; muestra advertencia ⚠️ de autocompactación al acercarse al umbral del 83.5%
+- **Monitoreo de límites de tasa** — `/usage` muestra la utilización del límite de tasa de la API de Claude con barra de porcentaje y cuenta regresiva hasta el reinicio por cada tipo de límite
 - **Ayuda integrada** — `/help` muestra todos los comandos slash disponibles y uso básico (efímero, solo visible para quien lo ejecuta)
 - **Cambio de modelo en tiempo de ejecución** — `/model-show` muestra el modelo global actual y el modelo de sesión por hilo; `/model-set` cambia el modelo para todas las nuevas sesiones sin reiniciar
 - **Permisos de herramientas en tiempo de ejecución** — `/tools-show` muestra las herramientas permitidas actualmente; `/tools-set` abre un menú de selección para activar/desactivar herramientas; `/tools-reset` revierte al valor por defecto de `.env` — todo sin reiniciar

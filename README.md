@@ -201,8 +201,10 @@ If the bot restarts mid-session, interrupted Claude sessions are automatically r
 - **Worktree management** — `/worktree-list` shows all active session worktrees with clean/dirty status; `/worktree-cleanup` removes orphaned clean worktrees (supports `dry_run` preview)
 - **Runtime model switching** — `/model-show` displays the current global model and per-thread session model; `/model-set` changes the model for all new sessions without restart
 - **Runtime tool permissions** — `/tools-show` displays the current allowed tools; `/tools-set` opens a select menu to toggle tools on/off; `/tools-reset` reverts to `.env` default — all without restart
-- **Conversation rewind** — `/rewind` resets conversation history while keeping all working files Claude created; useful when a session has gone off-track
-- **Conversation fork** — `/fork` branches the current thread into a new thread that continues from the same session state, letting you explore a different direction without affecting the original
+- **Conversation rewind** — `/rewind` resets conversation history while keeping all working files Claude created; the confirmation message shows context usage % at reset time so you can see how full the context was when you decided to rewind
+- **Conversation fork** — `/fork` branches the current thread into a new thread that continues from the same session state (using `--fork-session`), letting you explore a different direction without affecting the original
+- **Context visibility** — `/context` shows current context window usage % with a visual progress bar; displays an ⚠️ autocompact warning when nearing the 83.5% threshold
+- **Rate limit monitoring** — `/usage` shows Claude API rate limit utilization with a percentage bar and time-until-reset countdown for each limit type
 
 ### Security
 - **No shell injection** — `asyncio.create_subprocess_exec` only, never `shell=True`
