@@ -29,17 +29,14 @@ Quando você envia tarefas ao Claude Code em threads separadas do Discord, o bri
 
 2. **Registro de sessões ativas** — Cada sessão em execução conhece as outras. Se duas sessões estiverem prestes a tocar no mesmo repositório, elas podem se coordenar ao invés de conflitar.
 
-3. **Canal de coordenação** — Um canal compartilhado do Discord onde as sessões transmitem eventos de início/fim. Tanto o Claude quanto humanos podem ver de relance o que está acontecendo em todas as threads ativas.
+3. **AI Lounge** — Uma «sala de espera» compartilhada injetada no prompt de cada sessão. Antes de começar, cada sessão lê as mensagens recentes do Lounge para entender o que as outras estão fazendo. Antes de operações destrutivas (force push, reinício do bot, etc.), as sessões verificam o Lounge primeiro.
 
 ```
-Thread A (feature)    ──→  Claude Code (worktree-A)
-Thread B (revisão PR) ──→  Claude Code (worktree-B)
-Thread C (docs)       ──→  Claude Code (worktree-C)
-           ↓ eventos de ciclo de vida
-   #canal-coordenação
-   "A: iniciando refactor de autenticação"
-   "B: revisando PR #42"
-   "C: atualizando README"
+Thread A (feature)    ──→  Claude Code (worktree-A)  ─┐
+Thread B (revisão PR) ──→  Claude Code (worktree-B)   ├─→  #ai-lounge
+Thread C (docs)       ──→  Claude Code (worktree-C)  ─┘    "A: refactor auth em progresso"
+                                                            "B: revisão PR #42 concluída"
+                                                            "C: atualizando README"
 ```
 
 Sem race conditions. Sem trabalho perdido. Sem surpresas no merge.
@@ -57,7 +54,7 @@ Use o Claude Code de qualquer lugar onde o Discord funcione — celular, tablet 
 Abra múltiplas threads simultaneamente. Cada uma é uma sessão independente do Claude Code com seu próprio contexto, diretório de trabalho e git worktree. Padrões úteis:
 
 - **Feature + revisão em paralelo**: Inicie uma feature em uma thread enquanto o Claude revisa um PR em outra.
-- **Múltiplos colaboradores**: Diferentes membros do time têm sua própria thread; as sessões ficam cientes umas das outras via o canal de coordenação.
+- **Múltiplos colaboradores**: Diferentes membros do time têm sua própria thread; as sessões ficam cientes umas das outras via o AI Lounge.
 - **Experimente com segurança**: Tente uma abordagem na thread A enquanto mantém a thread B no código estável.
 
 ### Tarefas Agendadas (SchedulerCog)
@@ -154,8 +151,7 @@ Se o bot reiniciar no meio de uma sessão, as sessões do Claude interrompidas s
 - **Limpeza automática de worktree** — Worktrees de sessão (`wt-{thread_id}`) são removidos automaticamente ao final da sessão e na inicialização do bot; worktrees com alterações nunca são removidos automaticamente (invariante de segurança)
 - **Registro de sessões ativas** — Registro em memória; cada sessão vê o que as outras estão fazendo
 - **AI Lounge** — Canal «sala de descanso» compartilhado; contexto injetado via `--append-system-prompt` (efêmero, nunca acumula no histórico) para que sessões longas nunca atinjam «Prompt is too long»; sessões publicam intenções, leem o status umas das outras e verificam antes de operações destrutivas; os humanos veem como um feed de atividade em tempo real
-- **Canal de coordenação** — Canal compartilhado opcional para transmissões de ciclo de vida entre sessões
-- **Scripts de coordenação** — O Claude pode chamar `coord_post.py` / `coord_read.py` de dentro de uma sessão para postar e ler eventos
+- **Canal de coordenação** — A variável de ambiente `COORDINATION_CHANNEL_ID` é usada como fallback padrão para o canal AI Lounge (notificações automáticas de ciclo de vida do bot foram removidas)
 
 ### Tarefas Agendadas
 - **SchedulerCog** — Executor de tarefas periódicas com suporte SQLite e um loop mestre de 30 segundos
@@ -565,8 +561,6 @@ claude_discord/
     runner.py              # Gerenciador de subprocessos Claude CLI
     parser.py              # Parser de eventos stream-json
     types.py               # Definições de tipos para mensagens SDK
-  coordination/
-    service.py             # Publica eventos de ciclo de vida de sessão no canal compartilhado
   database/
     models.py              # Schema SQLite
     repository.py          # CRUD de sessões
@@ -600,7 +594,7 @@ claude_discord/
 ### Filosofia de Design
 
 - **Invocação CLI, não API** — Invoca `claude -p --output-format stream-json`, dando recursos completos do Claude Code (CLAUDE.md, skills, ferramentas, memória) sem reimplementá-los
-- **Concorrência primeiro** — Múltiplas sessões simultâneas são o caso esperado, não um edge case; cada sessão recebe instruções de worktree, o registro e o canal de coordenação cuidam do resto
+- **Concorrência primeiro** — Múltiplas sessões simultâneas são o caso esperado, não um edge case; cada sessão recebe instruções de worktree, o registro e o AI Lounge cuidam do resto
 - **Discord como cola** — Discord fornece UI, threads, reações, webhooks e notificações persistentes; sem frontend personalizado necessário
 - **Framework, não aplicação** — Instale como pacote, adicione Cogs ao seu bot existente, configure via código
 - **Extensibilidade sem código** — Adicione tarefas agendadas e disparadores webhook sem tocar no código fonte
