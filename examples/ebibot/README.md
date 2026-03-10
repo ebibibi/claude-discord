@@ -12,6 +12,7 @@ This example demonstrates how to extend ccdb with custom Cogs using the `CUSTOM_
 | WatchdogCog | `cogs/watchdog.py` | Todoist overdue task monitor (30min check, daily dedup) |
 | AutoUpgradeCog | `cogs/auto_upgrade.py` | Self-update via GitHub webhook + systemctl restart |
 | DocsSyncCog | `cogs/docs_sync.py` | Auto-translate docs on push via webhook |
+| AlertResponderCog | `cogs/alert_responder.py` | Watch a channel for ⚠️ alerts → auto-investigate with Claude Code |
 
 ## Quick Start
 
@@ -57,7 +58,7 @@ ccdb (framework)
   |
   +-- setup_bridge() -> ClaudeChatCog, SessionManageCog, SkillCommandCog, SchedulerCog
   |
-  +-- load_custom_cogs(cogs_dir) -> ReminderCog, WatchdogCog, AutoUpgradeCog, DocsSyncCog
+  +-- load_custom_cogs(cogs_dir) -> ReminderCog, WatchdogCog, AutoUpgradeCog, DocsSyncCog, AlertResponderCog
 ```
 
 All Cogs share the same bot instance, event loop, and Discord connection.
