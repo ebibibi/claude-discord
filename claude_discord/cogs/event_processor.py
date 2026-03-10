@@ -624,7 +624,7 @@ async def _post_statusline_footer(
 
     text = "\n".join(lines[:3])
     with contextlib.suppress(Exception):
-        await thread.send(text)  # type: ignore[union-attr]
+        await thread.send(f"```\n{text}\n```")  # type: ignore[union-attr]
 
 
 # ---------------------------------------------------------------------------
