@@ -36,23 +36,21 @@ send_webhook() {
     fi
 }
 
-# ── Step 1: Pull latest code ──
-echo "[pre-start] Pulling latest code..." >&2
-set +e
-STASHED=0
-if ! git diff --quiet 2>/dev/null; then
-    git stash push -m "pre-start auto-stash" --include-untracked 2>&1
-    STASHED=1
-fi
-git pull --ff-only origin main 2>&1
-PULL_EXIT=$?
-if [ $STASHED -eq 1 ]; then
-    git stash drop 2>&1 || true
-fi
-set -e
+# ── Step 1: Pull latest code (skip in local dev mode) ──
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+LOCAL_CHANGES=$(git status --porcelain 2>/dev/null)
 
-if [ $PULL_EXIT -ne 0 ]; then
-    echo "[pre-start] WARNING: git pull failed (exit $PULL_EXIT), continuing with current code" >&2
+if [ "$CURRENT_BRANCH" != "main" ] || [ -n "$LOCAL_CHANGES" ]; then
+    echo "[pre-start] Local dev mode (branch: $CURRENT_BRANCH) — skipping git pull" >&2
+else
+    echo "[pre-start] Pulling latest code..." >&2
+    set +e
+    git pull --ff-only origin main 2>&1
+    PULL_EXIT=$?
+    set -e
+    if [ $PULL_EXIT -ne 0 ]; then
+        echo "[pre-start] WARNING: git pull failed (exit $PULL_EXIT), continuing with current code" >&2
+    fi
 fi
 
 # ── Step 2: Sync dependencies ──

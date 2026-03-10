@@ -1,4 +1,4 @@
-.PHONY: setup check-setup format check test ci
+.PHONY: setup check-setup format check test ci pr
 
 # One-time setup after cloning: install uv (if needed) and register the committed git hooks.
 setup:
@@ -36,3 +36,9 @@ test:
 
 # Full CI simulation: format check + lint + tests.
 ci: check test
+
+# Push current branch and open a PR (used after local dev testing is done).
+pr:
+	@BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	git push -u origin "$$BRANCH"; \
+	gh pr create --fill --web
