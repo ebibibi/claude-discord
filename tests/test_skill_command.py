@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -12,6 +13,8 @@ import pytest
 from claude_discord.cogs.skill_command import (
     SKILL_RELOAD_INTERVAL,
     SkillCommandCog,
+    _collect_skills,
+    _get_plugin_skill_dirs,
     _load_skills,
     _parse_skill_meta,
 )
@@ -252,19 +255,19 @@ class TestLazyReload:
     def test_no_reload_within_interval(self) -> None:
         cog = _make_cog(skills=[{"name": "test", "description": ""}])
         cog._last_loaded = time.monotonic()  # just loaded
-        with patch("claude_discord.cogs.skill_command._load_skills") as mock_load:
+        with patch("claude_discord.cogs.skill_command._collect_skills") as mock_collect:
             cog._maybe_reload_skills()
-            mock_load.assert_not_called()
+            mock_collect.assert_not_called()
 
     def test_reloads_after_interval(self) -> None:
         cog = _make_cog(skills=[])
         cog._last_loaded = time.monotonic() - SKILL_RELOAD_INTERVAL - 1
         new_skills = [{"name": "fresh", "description": "New skill"}]
         with patch(
-            "claude_discord.cogs.skill_command._load_skills", return_value=new_skills
-        ) as mock_load:
+            "claude_discord.cogs.skill_command._collect_skills", return_value=new_skills
+        ) as mock_collect:
             cog._maybe_reload_skills()
-            mock_load.assert_called_once_with(cog._skills_dir)
+            mock_collect.assert_called_once()
         assert cog._skills == new_skills
 
     @pytest.mark.asyncio
@@ -273,7 +276,7 @@ class TestLazyReload:
         cog._last_loaded = time.monotonic() - SKILL_RELOAD_INTERVAL - 1
         new_skills = [{"name": "new-skill", "description": "Appears after reload"}]
         interaction = _make_interaction()
-        with patch("claude_discord.cogs.skill_command._load_skills", return_value=new_skills):
+        with patch("claude_discord.cogs.skill_command._collect_skills", return_value=new_skills):
             choices = await cog._skill_name_autocomplete(interaction, "new")
         assert len(choices) == 1
         assert choices[0].value == "new-skill"
@@ -561,3 +564,232 @@ class TestIsClaudeThread:
         )
         thread = _make_thread(parent_id=777)
         assert cog._is_claude_thread(thread) is False
+
+
+# ---------------------------------------------------------------------------
+# _get_plugin_skill_dirs
+# ---------------------------------------------------------------------------
+
+
+class TestGetPluginSkillDirs:
+    def test_returns_plugin_skills_dirs(self, tmp_path: Path) -> None:
+        """Returns skills/ paths for installed plugins that have a skills/ dir."""
+        plugin_dir = tmp_path / "plugins" / "cache" / "ecc" / "ecc" / "1.8.0"
+        skills_dir = plugin_dir / "skills"
+        skills_dir.mkdir(parents=True)
+
+        plugins_json = tmp_path / "plugins" / "installed_plugins.json"
+        plugins_json.parent.mkdir(parents=True, exist_ok=True)
+        plugins_json.write_text(
+            json.dumps(
+                {
+                    "version": 2,
+                    "plugins": {"ecc@ecc": [{"scope": "user", "installPath": str(plugin_dir)}]},
+                }
+            )
+        )
+
+        result = _get_plugin_skill_dirs(claude_dir=tmp_path)
+        assert skills_dir in result
+
+    def test_skips_plugins_without_skills_dir(self, tmp_path: Path) -> None:
+        """Plugins without a skills/ subdir are excluded."""
+        plugin_dir = tmp_path / "plugins" / "cache" / "foo" / "foo" / "1.0.0"
+        plugin_dir.mkdir(parents=True)  # no skills/ inside
+
+        plugins_json = tmp_path / "plugins" / "installed_plugins.json"
+        plugins_json.parent.mkdir(parents=True, exist_ok=True)
+        plugins_json.write_text(
+            json.dumps(
+                {
+                    "version": 2,
+                    "plugins": {"foo@foo": [{"scope": "user", "installPath": str(plugin_dir)}]},
+                }
+            )
+        )
+
+        result = _get_plugin_skill_dirs(claude_dir=tmp_path)
+        assert result == []
+
+    def test_missing_plugins_json_returns_empty(self, tmp_path: Path) -> None:
+        """Returns empty list when installed_plugins.json does not exist."""
+        result = _get_plugin_skill_dirs(claude_dir=tmp_path)
+        assert result == []
+
+    def test_malformed_plugins_json_returns_empty(self, tmp_path: Path) -> None:
+        """Returns empty list when plugins.json is malformed JSON."""
+        plugins_json = tmp_path / "plugins" / "installed_plugins.json"
+        plugins_json.parent.mkdir(parents=True, exist_ok=True)
+        plugins_json.write_text("{invalid json}")
+        result = _get_plugin_skill_dirs(claude_dir=tmp_path)
+        assert result == []
+
+    def test_multiple_plugins(self, tmp_path: Path) -> None:
+        """Returns skill dirs for multiple plugins."""
+        dirs = []
+        entries = {}
+        for name in ["alpha", "beta"]:
+            p = tmp_path / "plugins" / "cache" / name / name / "1.0.0"
+            s = p / "skills"
+            s.mkdir(parents=True)
+            dirs.append(s)
+            entries[f"{name}@{name}"] = [{"scope": "user", "installPath": str(p)}]
+
+        plugins_json = tmp_path / "plugins" / "installed_plugins.json"
+        plugins_json.parent.mkdir(parents=True, exist_ok=True)
+        plugins_json.write_text(json.dumps({"version": 2, "plugins": entries}))
+
+        result = _get_plugin_skill_dirs(claude_dir=tmp_path)
+        assert set(result) == set(dirs)
+
+
+# ---------------------------------------------------------------------------
+# _collect_skills
+# ---------------------------------------------------------------------------
+
+
+class TestCollectSkills:
+    def test_combines_primary_and_extra(self, tmp_path: Path) -> None:
+        """Skills from primary dir and extra dirs are combined."""
+        primary = tmp_path / "primary"
+        primary.mkdir()
+        (primary / "local-skill").mkdir()
+        (primary / "local-skill" / "SKILL.md").write_text(
+            "---\nname: local-skill\ndescription: Local\n---\n"
+        )
+
+        extra = tmp_path / "plugin-skills"
+        extra.mkdir()
+        (extra / "plugin-skill").mkdir()
+        (extra / "plugin-skill" / "SKILL.md").write_text(
+            "---\nname: plugin-skill\ndescription: Plugin\n---\n"
+        )
+
+        result = _collect_skills(primary, [extra])
+        names = [s["name"] for s in result]
+        assert "local-skill" in names
+        assert "plugin-skill" in names
+
+    def test_primary_wins_on_name_conflict(self, tmp_path: Path) -> None:
+        """When same name in primary and plugin, primary version wins."""
+        primary = tmp_path / "primary"
+        primary.mkdir()
+        (primary / "shared").mkdir()
+        (primary / "shared" / "SKILL.md").write_text(
+            "---\nname: shared\ndescription: My custom version\n---\n"
+        )
+
+        extra = tmp_path / "plugin"
+        extra.mkdir()
+        (extra / "shared").mkdir()
+        (extra / "shared" / "SKILL.md").write_text(
+            "---\nname: shared\ndescription: Plugin version\n---\n"
+        )
+
+        result = _collect_skills(primary, [extra])
+        shared = next(s for s in result if s["name"] == "shared")
+        assert shared["description"] == "My custom version"
+
+    def test_empty_extra_dirs(self, tmp_path: Path) -> None:
+        """Works with no extra dirs."""
+        primary = tmp_path / "primary"
+        primary.mkdir()
+        (primary / "skill-a").mkdir()
+        (primary / "skill-a" / "SKILL.md").write_text("---\nname: skill-a\ndescription: A\n---\n")
+        result = _collect_skills(primary, [])
+        assert len(result) == 1
+
+    def test_result_sorted_by_name(self, tmp_path: Path) -> None:
+        """Returned skills are sorted alphabetically by name."""
+        primary = tmp_path / "primary"
+        primary.mkdir()
+        for name in ["zebra", "apple", "mango"]:
+            (primary / name).mkdir()
+            (primary / name / "SKILL.md").write_text(
+                f"---\nname: {name}\ndescription: {name}\n---\n"
+            )
+        result = _collect_skills(primary, [])
+        assert [s["name"] for s in result] == ["apple", "mango", "zebra"]
+
+
+# ---------------------------------------------------------------------------
+# Cog auto-includes plugin skills (integration)
+# ---------------------------------------------------------------------------
+
+
+class TestCogPluginIntegration:
+    def test_cog_loads_plugin_skills_on_init(self, tmp_path: Path) -> None:
+        """SkillCommandCog auto-discovers and includes plugin skills at init."""
+        # Create a plugin with skills
+        plugin_dir = tmp_path / "plugins" / "cache" / "ecc" / "ecc" / "1.8.0"
+        plugin_skills = plugin_dir / "skills"
+        plugin_skills.mkdir(parents=True)
+        (plugin_skills / "plan").mkdir()
+        (plugin_skills / "plan" / "SKILL.md").write_text(
+            "---\nname: plan\ndescription: Plan a feature\n---\n"
+        )
+
+        plugins_json = tmp_path / "plugins" / "installed_plugins.json"
+        plugins_json.parent.mkdir(parents=True, exist_ok=True)
+        plugins_json.write_text(
+            json.dumps({"version": 2, "plugins": {"ecc@ecc": [{"installPath": str(plugin_dir)}]}})
+        )
+
+        # Create a primary skills dir (empty)
+        primary_dir = tmp_path / "skills"
+        primary_dir.mkdir()
+
+        bot = MagicMock()
+        repo = MagicMock()
+        repo.get = AsyncMock(return_value=None)
+        cog = SkillCommandCog(
+            bot=bot,
+            repo=repo,
+            runner=MagicMock(),
+            claude_channel_id=999,
+            skills_dir=primary_dir,
+            claude_dir=tmp_path,  # point to our fake ~/.claude
+        )
+
+        names = [s["name"] for s in cog._skills]
+        assert "plan" in names
+
+    def test_cog_local_skill_overrides_plugin_skill(self, tmp_path: Path) -> None:
+        """Local skill in skills_dir overrides same-named plugin skill."""
+        # Plugin skill
+        plugin_dir = tmp_path / "plugins" / "cache" / "ecc" / "ecc" / "1.0.0"
+        plugin_skills = plugin_dir / "skills"
+        plugin_skills.mkdir(parents=True)
+        (plugin_skills / "todoist").mkdir()
+        (plugin_skills / "todoist" / "SKILL.md").write_text(
+            "---\nname: todoist\ndescription: Plugin version\n---\n"
+        )
+
+        plugins_json = tmp_path / "plugins" / "installed_plugins.json"
+        plugins_json.parent.mkdir(parents=True, exist_ok=True)
+        plugins_json.write_text(
+            json.dumps({"version": 2, "plugins": {"ecc@ecc": [{"installPath": str(plugin_dir)}]}})
+        )
+
+        # Local override
+        primary_dir = tmp_path / "skills"
+        primary_dir.mkdir()
+        (primary_dir / "todoist").mkdir()
+        (primary_dir / "todoist" / "SKILL.md").write_text(
+            "---\nname: todoist\ndescription: My custom version\n---\n"
+        )
+
+        bot = MagicMock()
+        repo = MagicMock()
+        repo.get = AsyncMock(return_value=None)
+        cog = SkillCommandCog(
+            bot=bot,
+            repo=repo,
+            runner=MagicMock(),
+            claude_channel_id=999,
+            skills_dir=primary_dir,
+            claude_dir=tmp_path,
+        )
+
+        todoist = next(s for s in cog._skills if s["name"] == "todoist")
+        assert todoist["description"] == "My custom version"
