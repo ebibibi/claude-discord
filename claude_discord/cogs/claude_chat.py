@@ -19,6 +19,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from ..claude.rewind import find_session_jsonl, parse_user_turns
 from ..claude.runner import ClaudeRunner
 from ..concurrency import SessionRegistry
 from ..database.ask_repo import PendingAskRepository
@@ -30,7 +31,7 @@ from ..discord_ui.embeds import stopped_embed
 from ..discord_ui.status import StatusManager
 from ..discord_ui.thread_dashboard import ThreadState, ThreadStatusDashboard
 from ..discord_ui.thread_renamer import suggest_title
-from ..discord_ui.views import StopView
+from ..discord_ui.views import RewindSelectView, StopView
 from ._run_helper import run_claude_with_config
 from .prompt_builder import build_prompt_and_images, wants_file_attachment
 from .run_config import RunConfig
@@ -300,17 +301,20 @@ class ClaudeChatCog(commands.Cog):
 
     @app_commands.command(
         name="rewind",
-        description="Reset the conversation while keeping your working files",
+        description="Go back to an earlier point in the conversation",
     )
     async def rewind_session(self, interaction: discord.Interaction) -> None:
-        """Reset conversation history, preserving working files in the thread's directory.
+        """Rewind the conversation to a selected earlier turn.
 
-        Unlike /clear, this command emphasises that **files created by Claude are kept** —
-        only the conversation context is erased.  The thread remains open and the next
-        message will start a fresh Claude session in the same working directory.
+        Reads the session JSONL history, shows a select menu of past user
+        messages, and truncates the JSONL at the chosen point so that
+        ``--resume`` picks up from just before that message.
 
-        Useful when Claude has gone off-track and you want to restart the conversation
-        without losing the code or files it already wrote.
+        Unlike /clear, the session record is **kept** — only the JSONL is
+        trimmed — so you can continue the conversation from the rewound state
+        rather than starting a completely fresh session.
+
+        Working files created by Claude are always preserved.
         """
         if not isinstance(interaction.channel, discord.Thread):
             await interaction.response.send_message(
@@ -326,25 +330,38 @@ class ClaudeChatCog(commands.Cog):
             )
             return
 
-        # Kill active runner if any — same as /clear.
-        runner = self._active_runners.get(thread_id)
-        if runner:
-            await runner.kill()
-            del self._active_runners[thread_id]
+        # Locate the JSONL and parse user turns.
+        jsonl_path = find_session_jsonl(record.session_id, record.working_dir)
+        turns = parse_user_turns(jsonl_path) if jsonl_path is not None else []
 
-        await self.repo.delete(thread_id)
+        if not turns:
+            # No history to rewind through — fall back to a full reset (same as /clear).
+            runner = self._active_runners.pop(thread_id, None)
+            if runner:
+                await runner.kill()
+            await self.repo.delete(thread_id)
+            await interaction.response.send_message(
+                "⏪ No conversation history found to rewind. "
+                "Session has been reset — send a new message to start fresh."
+            )
+            return
 
-        # Build confirmation message, optionally including context stats.
-        ctx_suffix = ""
+        # Show the turn-selection menu.  The runner will be stopped inside the
+        # view callback once the user confirms a specific turn to rewind to.
+        ctx_note = ""
         if record.context_window and record.context_used is not None:
             pct = round(record.context_used / record.context_window * 100)
-            ctx_suffix = f" Context was **{pct}%** full at reset."
+            ctx_note = f" (context {pct}% full)"
 
+        view = RewindSelectView(
+            turns=turns,
+            jsonl_path=jsonl_path,
+            active_runners=self._active_runners,
+            thread_id=thread_id,
+        )
         await interaction.response.send_message(
-            "🔄 **Conversation reset.**"
-            + ctx_suffix
-            + " Working files are preserved — only the conversation history was cleared."
-            + " Send a new message to start a fresh session."
+            f"⏪ **Rewind**{ctx_note} — select a turn to go back to before:",
+            view=view,
         )
 
     @app_commands.command(

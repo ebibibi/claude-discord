@@ -1,11 +1,15 @@
 """Tests for /rewind and /fork slash commands.
 
-/rewind — Reset conversation history while preserving working files.
+/rewind — Rewind conversation history to a selected earlier turn by
+          truncating the session JSONL.  The DB session record is preserved
+          so ``--resume`` works from the rewound state.  When no JSONL is
+          found (or it is empty), falls back to a full session reset.
 /fork   — Create a new thread continuing this conversation from the same point.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
@@ -73,7 +77,7 @@ def _make_session_record(
 
 
 # ---------------------------------------------------------------------------
-# /rewind
+# /rewind — guard-clause tests (no JSONL needed)
 # ---------------------------------------------------------------------------
 
 
@@ -94,7 +98,6 @@ class TestRewindCommand:
         """Using /rewind when no session exists shows an ephemeral notice."""
         cog = _make_cog()
         cog.repo.get = AsyncMock(return_value=None)
-        cog.repo.delete = AsyncMock(return_value=False)
         interaction = _make_thread_interaction()
 
         await cog.rewind_session.callback(cog, interaction)
@@ -102,22 +105,47 @@ class TestRewindCommand:
         interaction.response.send_message.assert_called_once()
         assert interaction.response.send_message.call_args.kwargs.get("ephemeral") is True
 
+    # ---------------------------------------------------------------------------
+    # /rewind — fallback (no JSONL / empty history → behaves like /clear)
+    # ---------------------------------------------------------------------------
+
     @pytest.mark.asyncio
-    async def test_rewind_deletes_session_from_db(self) -> None:
-        """/rewind must delete the session from the DB to clear conversation."""
+    async def test_rewind_no_jsonl_falls_back_to_clear(self) -> None:
+        """/rewind with no JSONL found falls back to a full session reset."""
         cog = _make_cog()
         thread_id = 12345
         cog.repo.get = AsyncMock(return_value=_make_session_record(thread_id))
         cog.repo.delete = AsyncMock(return_value=True)
         interaction = _make_thread_interaction(thread_id=thread_id)
 
-        await cog.rewind_session.callback(cog, interaction)
+        with patch("claude_discord.cogs.claude_chat.find_session_jsonl", return_value=None):
+            await cog.rewind_session.callback(cog, interaction)
+
+        # DB should be cleared (fallback behaviour)
+        cog.repo.delete.assert_called_once_with(thread_id)
+        interaction.response.send_message.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_rewind_empty_turns_falls_back_to_clear(self) -> None:
+        """/rewind with an empty turn list falls back to a full session reset."""
+        cog = _make_cog()
+        thread_id = 12345
+        fake_jsonl = MagicMock(spec=Path)
+        cog.repo.get = AsyncMock(return_value=_make_session_record(thread_id))
+        cog.repo.delete = AsyncMock(return_value=True)
+        interaction = _make_thread_interaction(thread_id=thread_id)
+
+        with (
+            patch("claude_discord.cogs.claude_chat.find_session_jsonl", return_value=fake_jsonl),
+            patch("claude_discord.cogs.claude_chat.parse_user_turns", return_value=[]),
+        ):
+            await cog.rewind_session.callback(cog, interaction)
 
         cog.repo.delete.assert_called_once_with(thread_id)
 
     @pytest.mark.asyncio
-    async def test_rewind_kills_active_runner(self) -> None:
-        """/rewind stops any currently running Claude process."""
+    async def test_rewind_fallback_kills_active_runner(self) -> None:
+        """/rewind fallback stops any running Claude process."""
         cog = _make_cog()
         thread_id = 12345
         cog.repo.get = AsyncMock(return_value=_make_session_record(thread_id))
@@ -128,94 +156,94 @@ class TestRewindCommand:
         mock_runner.kill = AsyncMock()
         cog._active_runners[thread_id] = mock_runner
 
-        await cog.rewind_session.callback(cog, interaction)
+        with patch("claude_discord.cogs.claude_chat.find_session_jsonl", return_value=None):
+            await cog.rewind_session.callback(cog, interaction)
 
         mock_runner.kill.assert_called_once()
 
+    # ---------------------------------------------------------------------------
+    # /rewind — happy path (JSONL with turns → show Select menu)
+    # ---------------------------------------------------------------------------
+
     @pytest.mark.asyncio
-    async def test_rewind_removes_runner_from_active_dict(self) -> None:
-        """/rewind removes the runner from _active_runners after killing it."""
+    async def test_rewind_with_turns_shows_select_menu(self) -> None:
+        """/rewind with history shows a RewindSelectView, does NOT delete DB."""
+        from claude_discord.claude.rewind import TurnEntry
+
         cog = _make_cog()
         thread_id = 12345
         cog.repo.get = AsyncMock(return_value=_make_session_record(thread_id))
         cog.repo.delete = AsyncMock(return_value=True)
         interaction = _make_thread_interaction(thread_id=thread_id)
 
-        mock_runner = MagicMock()
-        mock_runner.kill = AsyncMock()
-        cog._active_runners[thread_id] = mock_runner
+        fake_jsonl = MagicMock(spec=Path)
+        fake_turns = [
+            TurnEntry(line_index=0, uuid="u1", timestamp=None, text="Hello Claude"),
+            TurnEntry(line_index=2, uuid="u2", timestamp=None, text="What is 2+2?"),
+        ]
 
-        await cog.rewind_session.callback(cog, interaction)
+        with (
+            patch("claude_discord.cogs.claude_chat.find_session_jsonl", return_value=fake_jsonl),
+            patch("claude_discord.cogs.claude_chat.parse_user_turns", return_value=fake_turns),
+        ):
+            await cog.rewind_session.callback(cog, interaction)
 
-        assert thread_id not in cog._active_runners
-
-    @pytest.mark.asyncio
-    async def test_rewind_sends_confirmation_message(self) -> None:
-        """/rewind sends a visible (non-ephemeral) confirmation message."""
-        cog = _make_cog()
-        thread_id = 12345
-        cog.repo.get = AsyncMock(return_value=_make_session_record(thread_id))
-        cog.repo.delete = AsyncMock(return_value=True)
-        interaction = _make_thread_interaction(thread_id=thread_id)
-
-        await cog.rewind_session.callback(cog, interaction)
-
+        # DB must NOT be deleted when history exists
+        cog.repo.delete.assert_not_called()
+        # A message with a view should be sent
         interaction.response.send_message.assert_called_once()
         call_kwargs = interaction.response.send_message.call_args.kwargs
-        # Must NOT be ephemeral — the rewind notice should be visible in the thread.
-        assert not call_kwargs.get("ephemeral", False)
+        assert "view" in call_kwargs
 
     @pytest.mark.asyncio
-    async def test_rewind_confirmation_mentions_files_preserved(self) -> None:
-        """The confirmation message must convey that working files are kept."""
+    async def test_rewind_with_turns_does_not_delete_session(self) -> None:
+        """/rewind with turns keeps the session record so --resume works."""
+        from claude_discord.claude.rewind import TurnEntry
+
         cog = _make_cog()
         thread_id = 12345
         cog.repo.get = AsyncMock(return_value=_make_session_record(thread_id))
-        cog.repo.delete = AsyncMock(return_value=True)
         interaction = _make_thread_interaction(thread_id=thread_id)
 
-        await cog.rewind_session.callback(cog, interaction)
+        fake_turns = [TurnEntry(line_index=0, uuid="u1", timestamp=None, text="test")]
 
-        content: str = interaction.response.send_message.call_args.args[0]
-        # The message should mention files are preserved so users understand what changed.
-        assert any(
-            word in content.lower() for word in ("file", "work", "保持", "preserved", "kept")
-        )
+        with (
+            patch(
+                "claude_discord.cogs.claude_chat.find_session_jsonl",
+                return_value=MagicMock(spec=Path),
+            ),
+            patch("claude_discord.cogs.claude_chat.parse_user_turns", return_value=fake_turns),
+        ):
+            await cog.rewind_session.callback(cog, interaction)
+
+        cog.repo.delete.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_rewind_shows_context_stats_when_available(self) -> None:
-        """/rewind confirmation includes context usage % when stats are in the DB."""
+    async def test_rewind_shows_context_stats_in_prompt(self) -> None:
+        """/rewind prompt includes context % when stats are available."""
+        from claude_discord.claude.rewind import TurnEntry
+
         cog = _make_cog()
         thread_id = 12345
         record = _make_session_record(
             thread_id=thread_id, context_window=200000, context_used=150000
         )
         cog.repo.get = AsyncMock(return_value=record)
-        cog.repo.delete = AsyncMock(return_value=True)
         interaction = _make_thread_interaction(thread_id=thread_id)
 
-        await cog.rewind_session.callback(cog, interaction)
+        fake_turns = [TurnEntry(line_index=0, uuid="u1", timestamp=None, text="test")]
 
-        call_args = interaction.response.send_message.call_args
-        # The confirmation message includes a context % indicator (e.g. "75%")
-        content: str = call_args.args[0]
+        with (
+            patch(
+                "claude_discord.cogs.claude_chat.find_session_jsonl",
+                return_value=MagicMock(spec=Path),
+            ),
+            patch("claude_discord.cogs.claude_chat.parse_user_turns", return_value=fake_turns),
+        ):
+            await cog.rewind_session.callback(cog, interaction)
+
+        content: str = interaction.response.send_message.call_args.args[0]
         assert "75" in content  # 150000/200000 = 75%
-
-    @pytest.mark.asyncio
-    async def test_rewind_no_context_stats_still_succeeds(self) -> None:
-        """/rewind works even when no context stats are stored."""
-        cog = _make_cog()
-        thread_id = 12345
-        record = _make_session_record(thread_id=thread_id, context_window=None, context_used=None)
-        cog.repo.get = AsyncMock(return_value=record)
-        cog.repo.delete = AsyncMock(return_value=True)
-        interaction = _make_thread_interaction(thread_id=thread_id)
-
-        await cog.rewind_session.callback(cog, interaction)
-
-        # Should still send a non-ephemeral confirmation
-        call_kwargs = interaction.response.send_message.call_args.kwargs
-        assert not call_kwargs.get("ephemeral", False)
 
 
 # ---------------------------------------------------------------------------

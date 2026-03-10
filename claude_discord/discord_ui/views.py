@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import discord
 
+from ..claude.rewind import TurnEntry, truncate_jsonl_at_line
 from ..claude.runner import ClaudeRunner
 from .embeds import COLOR_SUCCESS, stopped_embed, tool_result_embed, tool_result_preview_embed
 
@@ -187,3 +189,85 @@ class ToolSelectView(discord.ui.View):
         embed = discord.Embed(title="✅ Tools Updated", description=desc, color=COLOR_SUCCESS)
         await interaction.response.edit_message(content=None, embed=embed, view=None)
         self.stop()
+
+
+class RewindSelectView(discord.ui.View):
+    """Select menu for choosing which conversation turn to rewind to.
+
+    Shows a list of past user messages (oldest to newest).  The user picks
+    one; everything from that message onward is removed from the session JSONL
+    so that ``--resume session_id`` resumes from just before that message.
+
+    The active runner is stopped before truncation so it cannot write new JSONL
+    entries that would be discarded.  The DB session record is intentionally
+    **not** deleted — only the JSONL is trimmed — so the next message in the
+    thread uses ``--resume`` and picks up from the rewound state.
+    """
+
+    def __init__(
+        self,
+        turns: list[TurnEntry],
+        jsonl_path: Path,
+        active_runners: dict,
+        thread_id: int,
+    ) -> None:
+        super().__init__(timeout=60)
+        self._turns = turns
+        self._jsonl_path = jsonl_path
+        self._active_runners = active_runners
+        self._thread_id = thread_id
+
+        options = [
+            discord.SelectOption(
+                label=f"↩ {turn.text[:90]}",
+                value=str(i),
+                description=(turn.timestamp[:10] if turn.timestamp else None),
+            )
+            for i, turn in enumerate(turns)
+        ]
+
+        select = discord.ui.Select(
+            placeholder="Select the turn to rewind before...",
+            options=options,
+        )
+        select.callback = self._on_select
+        self.add_item(select)
+
+        cancel_button = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.secondary)
+        cancel_button.callback = self._on_cancel
+        self.add_item(cancel_button)
+
+    async def _on_select(self, interaction: discord.Interaction) -> None:
+        idx = int(interaction.data["values"][0])
+        turn = self._turns[idx]
+
+        # Stop any active runner first so it cannot append new JSONL lines.
+        runner = self._active_runners.pop(self._thread_id, None)
+        if runner is not None:
+            with contextlib.suppress(Exception):
+                await runner.kill()
+
+        success = truncate_jsonl_at_line(self._jsonl_path, turn.line_index)
+
+        if success:
+            preview = turn.text[:60]
+            msg = (
+                f"⏪ **Rewound** — removed everything from: _{preview}_\n"
+                "Conversation history has been truncated. "
+                "Send a new message to continue from the rewound state."
+            )
+        else:
+            msg = (
+                "⚠️ **Rewind failed** — could not truncate conversation history. "
+                "The session was not modified."
+            )
+
+        await interaction.response.edit_message(content=msg, view=None)
+        self.stop()
+
+    async def _on_cancel(self, interaction: discord.Interaction) -> None:
+        await interaction.response.edit_message(content="Rewind cancelled.", view=None)
+        self.stop()
+
+    async def on_timeout(self) -> None:
+        """No-op: the message remains but the view becomes inactive."""
