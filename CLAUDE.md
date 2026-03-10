@@ -81,6 +81,12 @@ cp .env.example .env
 uv run python -m claude_discord.main
 ```
 
+### EbiBot のデプロイ（⚠️ 手動操作が必要と断言する前に読め）
+
+「手動で `git pull` が必要」「`systemctl restart` が必要」等と言う前に、
+`scripts/pre-start.sh`・`.github/workflows/`・`examples/ebibot/cogs/` を読むこと。
+自動化されている可能性が高い。
+
 ## Code Conventions
 
 ### Style

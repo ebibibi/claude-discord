@@ -15,6 +15,7 @@ Skills are lazily reloaded every 60 seconds so new skills appear without restart
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -77,6 +78,58 @@ def _load_skills(skills_dir: Path) -> list[dict[str, str]]:
     return skills
 
 
+def _get_plugin_skill_dirs(claude_dir: Path | None = None) -> list[Path]:
+    """Discover skills/ directories from all installed Claude Code plugins.
+
+    Reads ``~/.claude/plugins/installed_plugins.json`` and returns the
+    ``skills/`` subdirectory for each plugin whose installPath contains one.
+    Returns an empty list if the file does not exist or cannot be parsed.
+    """
+    if claude_dir is None:
+        claude_dir = Path.home() / ".claude"
+    plugins_json = claude_dir / "plugins" / "installed_plugins.json"
+    if not plugins_json.exists():
+        return []
+    try:
+        data = json.loads(plugins_json.read_text(encoding="utf-8"))
+        dirs: list[Path] = []
+        for entries in data.get("plugins", {}).values():
+            for entry in entries:
+                install_path = entry.get("installPath")
+                if not install_path:
+                    continue
+                skills_dir = Path(install_path) / "skills"
+                if skills_dir.is_dir():
+                    dirs.append(skills_dir)
+        return dirs
+    except (OSError, json.JSONDecodeError, TypeError, KeyError):
+        logger.warning("Failed to discover plugin skill dirs from %s", plugins_json)
+        return []
+
+
+def _collect_skills(primary_dir: Path, extra_dirs: list[Path]) -> list[dict[str, str]]:
+    """Load skills from primary_dir and extra_dirs, merging by name.
+
+    Skills in ``primary_dir`` take precedence: if the same skill name exists in
+    both a local skills dir and a plugin, the local (user-customised) version wins.
+    The result is sorted alphabetically by skill name.
+    """
+    seen: set[str] = set()
+    result: list[dict[str, str]] = []
+
+    for skill in _load_skills(primary_dir):
+        seen.add(skill["name"])
+        result.append(skill)
+
+    for extra in extra_dirs:
+        for skill in _load_skills(extra):
+            if skill["name"] not in seen:
+                seen.add(skill["name"])
+                result.append(skill)
+
+    return sorted(result, key=lambda s: s["name"])
+
+
 class SkillCommandCog(commands.Cog):
     """Cog that exposes Claude Code skills as a /skill slash command."""
 
@@ -90,6 +143,7 @@ class SkillCommandCog(commands.Cog):
         allowed_user_ids: set[int] | None = None,
         registry: SessionRegistry | None = None,
         claude_channel_ids: set[int] | None = None,
+        claude_dir: Path | str | None = None,
     ) -> None:
         self.bot = bot
         self.repo = repo
@@ -105,14 +159,20 @@ class SkillCommandCog(commands.Cog):
         if skills_dir is None:
             skills_dir = Path.home() / ".claude" / "skills"
         self._skills_dir = Path(skills_dir)
-        self._skills = _load_skills(self._skills_dir)
+
+        # Optional override for the Claude config dir (used in tests; defaults to ~/.claude)
+        self._claude_dir: Path | None = Path(claude_dir) if claude_dir is not None else None
+
+        self._skills = _collect_skills(self._skills_dir, _get_plugin_skill_dirs(self._claude_dir))
         self._last_loaded: float = time.monotonic()
 
     def _maybe_reload_skills(self) -> None:
         """Reload skills from disk if SKILL_RELOAD_INTERVAL has elapsed."""
         now = time.monotonic()
         if now - self._last_loaded >= SKILL_RELOAD_INTERVAL:
-            self._skills = _load_skills(self._skills_dir)
+            self._skills = _collect_skills(
+                self._skills_dir, _get_plugin_skill_dirs(self._claude_dir)
+            )
             self._last_loaded = now
 
     def _is_authorized(self, user_id: int) -> bool:
