@@ -81,24 +81,11 @@ cp .env.example .env
 uv run python -m claude_discord.main
 ```
 
-### EbiBot の自動デプロイ（⚠️ 「手動 git pull が必要」と言う前に必ず読め）
+### EbiBot のデプロイ（⚠️ 手動操作が必要と断言する前に読め）
 
-EbiBot インスタンス（`/home/ebi/claude-code-discord-bridge/`）は **PR マージだけで自動デプロイされる**。
-手動で `git pull` や `systemctl restart` を実行する必要はない。
-
-```
-PR マージ
-  → .github/workflows/auto-approve.yml が 🔄 ebibot-upgrade webhook を送信
-  → AutoUpgradeCog が systemctl restart discord-bot.service を実行
-  → ExecStartPre: scripts/pre-start.sh が git pull --ff-only origin main を実行
-  → uv sync で依存関係を同期
-  → 新しいコード（Cog 含む）で bot が起動
-```
-
-確認すべきファイル:
-- `scripts/pre-start.sh` — `git pull` + `uv sync` + import 検証 + ロールバック
-- `.github/workflows/auto-approve.yml` — ebibibi の PR を自動マージ + webhook 送信
-- `examples/ebibot/cogs/auto_upgrade.py` — `🔄 ebibot-upgrade` トリガーで systemctl restart
+「手動で `git pull` が必要」「`systemctl restart` が必要」等と言う前に、
+`scripts/pre-start.sh`・`.github/workflows/`・`examples/ebibot/cogs/` を読むこと。
+自動化されている可能性が高い。
 
 ## Code Conventions
 
