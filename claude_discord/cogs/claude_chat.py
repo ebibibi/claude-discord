@@ -353,6 +353,7 @@ class ClaudeChatCog(commands.Cog):
             pct = round(record.context_used / record.context_window * 100)
             ctx_note = f" (context {pct}% full)"
 
+        assert jsonl_path is not None  # guaranteed: turns is non-empty here
         view = RewindSelectView(
             turns=turns,
             jsonl_path=jsonl_path,
