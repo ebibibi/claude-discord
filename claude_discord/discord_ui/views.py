@@ -5,7 +5,7 @@ from __future__ import annotations
 import contextlib
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import discord
 
@@ -238,7 +238,8 @@ class RewindSelectView(discord.ui.View):
         self.add_item(cancel_button)
 
     async def _on_select(self, interaction: discord.Interaction) -> None:
-        idx = int(interaction.data["values"][0])
+        data = cast(dict[str, Any], interaction.data)
+        idx = int(data["values"][0])
         turn = self._turns[idx]
 
         # Stop any active runner first so it cannot append new JSONL lines.

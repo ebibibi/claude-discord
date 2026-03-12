@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -163,6 +164,10 @@ class TestReadStatuslineCommand:
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="requires a real bash shell (unavailable on Windows CI)",
+)
 class TestRenderStatusline:
     async def test_returns_plain_text_from_command(self) -> None:
         result = await render_statusline("echo '📁 ~/project'", "{}", timeout=5.0)
