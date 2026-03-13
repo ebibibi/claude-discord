@@ -297,6 +297,7 @@ uv lock --upgrade-package claude-code-discord-bridge && uv sync
 | `DISCORD_OWNER_ID` | ID utilisateur à @mentionner quand Claude a besoin d'une saisie | (optionnel) |
 | `COORDINATION_CHANNEL_ID` | ID du canal utilisé comme valeur de repli par défaut pour le canal AI Lounge | (optionnel) |
 | `WORKTREE_BASE_DIR` | Répertoire de base pour scanner les worktrees de session (active le nettoyage automatique) | (optionnel) |
+| `CLI_SESSIONS_PATH` | Chemin vers `~/.claude/projects` pour la découverte de sessions CLI (active `/sync-sessions`) | (optionnel) |
 | `MENTION_ONLY_CHANNEL_IDS` | IDs de canal séparés par des virgules où le bot répond uniquement quand il est @mentionné | (optionnel) |
 | `INLINE_REPLY_CHANNEL_IDS` | IDs de canal séparés par des virgules où le bot répond en ligne (sans créer de fil) | (optionnel) |
 | `THREAD_INBOX_ENABLED` | Active la boîte de réception persistante des fils (classe les sessions en `waiting`/`done`/`ambiguous` via `claude -p` ; affiché dans le tableau de bord des fils) | `false` |

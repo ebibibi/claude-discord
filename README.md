@@ -480,6 +480,7 @@ In inline-reply mode, Claude's response is sent directly as a message in the cha
 | `MENTION_ONLY_CHANNEL_IDS` | Comma-separated channel IDs where the bot only responds when @mentioned | (optional) |
 | `INLINE_REPLY_CHANNEL_IDS` | Comma-separated channel IDs where the bot replies inline (no thread created) | (optional) |
 | `WORKTREE_BASE_DIR` | Base directory to scan for session worktrees (enables automatic cleanup) | (optional) |
+| `CLI_SESSIONS_PATH` | Path to `~/.claude/projects` for CLI session discovery (enables `/sync-sessions`) | (optional) |
 | `CUSTOM_COGS_DIR` | Directory containing custom Cog files to load at startup (see [Custom Cogs](#custom-cogs-extend-without-forking)) | (optional) |
 | `CLAUDE_ALLOWED_TOOLS` | Comma-separated list of allowed tools for Claude CLI | (optional) |
 | `CLAUDE_CHANNEL_IDS` | Additional channel IDs (comma-separated) for multi-channel setup | (optional) |

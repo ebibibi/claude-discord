@@ -481,6 +481,7 @@ INLINE_REPLY_CHANNEL_IDS=333,444
 | `MENTION_ONLY_CHANNEL_IDS` | @メンション時のみ応答するチャンネル ID（カンマ区切り） | （オプション） |
 | `INLINE_REPLY_CHANNEL_IDS` | インライン返信チャンネル ID（カンマ区切り、スレッドを作成しない） | （オプション） |
 | `WORKTREE_BASE_DIR` | セッション Worktree のスキャン対象ディレクトリ（自動クリーンアップを有効化） | （オプション） |
+| `CLI_SESSIONS_PATH` | CLI セッション検出用のパス（`~/.claude/projects`）。`/sync-sessions` の有効化に必要 | （オプション） |
 | `CUSTOM_COGS_DIR` | 起動時に読み込むカスタム Cog ファイルを含むディレクトリ（[カスタム Cog](#カスタム-cogフォーク不要で機能拡張) 参照） | （オプション） |
 | `CLAUDE_ALLOWED_TOOLS` | Claude CLI に許可するツールのカンマ区切りリスト | （オプション） |
 | `CLAUDE_CHANNEL_IDS` | マルチチャンネル設定用の追加チャンネル ID（カンマ区切り） | （オプション） |
