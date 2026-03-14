@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS lounge_messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     label TEXT NOT NULL DEFAULT 'AI',
     message TEXT NOT NULL,
+    thread_id INTEGER,
     posted_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -133,6 +134,8 @@ _MIGRATIONS = [
         "is_using_overage INTEGER NOT NULL DEFAULT 0, "
         "recorded_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')))"
     ),
+    # thread_id column on lounge_messages — tracks which Discord thread posted the message
+    "ALTER TABLE lounge_messages ADD COLUMN thread_id INTEGER",
 ]
 
 

@@ -14,7 +14,7 @@ file dependency.  Old messages are pruned automatically to keep the table small.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import aiosqlite
 
@@ -32,6 +32,7 @@ class LoungeMessage:
     label: str
     message: str
     posted_at: str  # ISO datetime string (localtime)
+    thread_id: int | None = field(default=None)  # Discord thread that posted this
 
 
 class LoungeRepository:
@@ -44,7 +45,9 @@ class LoungeRepository:
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
 
-    async def post(self, message: str, label: str = "AI") -> LoungeMessage:
+    async def post(
+        self, message: str, label: str = "AI", *, thread_id: int | None = None
+    ) -> LoungeMessage:
         """Insert a new lounge message and return it.
 
         Prunes messages exceeding _MAX_STORED_MESSAGES after insert.
@@ -55,15 +58,15 @@ class LoungeRepository:
         async with aiosqlite.connect(self._db_path) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
-                "INSERT INTO lounge_messages (label, message) VALUES (?, ?)",
-                (label, message),
+                "INSERT INTO lounge_messages (label, message, thread_id) VALUES (?, ?, ?)",
+                (label, message, thread_id),
             )
             row_id = cursor.lastrowid
             await db.commit()
 
             # Fetch the inserted row (to get server-generated posted_at)
             cur = await db.execute(
-                "SELECT id, label, message, posted_at FROM lounge_messages WHERE id = ?",
+                "SELECT id, label, message, thread_id, posted_at FROM lounge_messages WHERE id = ?",
                 (row_id,),
             )
             row = await cur.fetchone()
@@ -84,6 +87,7 @@ class LoungeRepository:
             label=row["label"],
             message=row["message"],
             posted_at=row["posted_at"],
+            thread_id=row["thread_id"],
         )
         logger.info("Lounge message posted by %r (id=%d)", label, result.id)
         return result
@@ -98,8 +102,8 @@ class LoungeRepository:
             db.row_factory = aiosqlite.Row
             # Pick the N newest via subquery, then sort ascending for display
             rows = await db.execute_fetchall(
-                "SELECT id, label, message, posted_at FROM ("
-                "  SELECT id, label, message, posted_at FROM lounge_messages"
+                "SELECT id, label, message, thread_id, posted_at FROM ("
+                "  SELECT id, label, message, thread_id, posted_at FROM lounge_messages"
                 "  ORDER BY id DESC LIMIT ?"
                 ") ORDER BY id ASC",
                 (limit,),
@@ -111,6 +115,7 @@ class LoungeRepository:
                 label=row["label"],
                 message=row["message"],
                 posted_at=row["posted_at"],
+                thread_id=row["thread_id"],
             )
             for row in rows
         ]

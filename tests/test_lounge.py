@@ -114,10 +114,24 @@ class TestLoungeRepository:
         assert msg.label == "TestBot"
         assert msg.message == "Hello from AI!"
         assert msg.posted_at  # non-empty datetime string
+        assert msg.thread_id is None  # no thread_id by default
 
         recent = await lounge_repo.get_recent(limit=10)
         assert len(recent) == 1
         assert recent[0].id == msg.id
+
+    async def test_post_with_thread_id(self, lounge_repo: LoungeRepository) -> None:
+        """thread_id is stored and returned correctly."""
+        msg = await lounge_repo.post("Working on it", label="Bot", thread_id=123456789)
+        assert msg.thread_id == 123456789
+
+        recent = await lounge_repo.get_recent(limit=10)
+        assert recent[0].thread_id == 123456789
+
+    async def test_post_without_thread_id(self, lounge_repo: LoungeRepository) -> None:
+        """thread_id defaults to None when not provided."""
+        msg = await lounge_repo.post("No thread", label="Bot")
+        assert msg.thread_id is None
 
     async def test_get_recent_oldest_first(self, lounge_repo: LoungeRepository) -> None:
         """Messages returned in chronological (oldest-first) order."""
@@ -213,6 +227,86 @@ class TestBuildLoungePrompt:
         assert "CCDB_API_URL" in result
         assert "/api/lounge" in result
 
+    def test_curl_includes_thread_id(self) -> None:
+        """The curl example includes thread_id in the JSON body."""
+        result = build_lounge_prompt([])
+        assert "thread_id" in result
+        assert "DISCORD_THREAD_ID" in result
+
+    def test_this_thread_marker_for_matching_thread(self) -> None:
+        """Messages from current thread are annotated with [this thread]."""
+        messages = [
+            LoungeMessage(
+                id=1,
+                label="BotA",
+                message="My earlier work",
+                posted_at="2026-03-14 09:00:00",
+                thread_id=42,
+            ),
+            LoungeMessage(
+                id=2,
+                label="BotB",
+                message="Other work",
+                posted_at="2026-03-14 09:01:00",
+                thread_id=99,
+            ),
+        ]
+        result = build_lounge_prompt(messages, current_thread_id=42)
+        # Message from thread 42 should have [this thread]
+        assert "[this thread]" in result
+        # Only the first message line should have the marker
+        lines = result.split("\n")
+        thread_marker_lines = [line for line in lines if "[this thread]" in line]
+        assert len(thread_marker_lines) == 1
+        assert "BotA" in thread_marker_lines[0]
+        assert "My earlier work" in thread_marker_lines[0]
+
+    def test_no_marker_when_no_current_thread_id(self) -> None:
+        """Without current_thread_id, no [this thread] markers appear."""
+        messages = [
+            LoungeMessage(
+                id=1,
+                label="BotA",
+                message="work",
+                posted_at="2026-03-14 09:00:00",
+                thread_id=42,
+            ),
+        ]
+        result = build_lounge_prompt(messages)  # no current_thread_id
+        assert "[this thread]" not in result
+
+    def test_no_marker_when_thread_id_is_none(self) -> None:
+        """Messages without thread_id are never annotated."""
+        messages = [
+            LoungeMessage(
+                id=1,
+                label="BotA",
+                message="old message",
+                posted_at="2026-03-14 09:00:00",
+                thread_id=None,
+            ),
+        ]
+        result = build_lounge_prompt(messages, current_thread_id=42)
+        assert "[this thread]" not in result
+
+    def test_all_matching_messages_get_marker(self) -> None:
+        """All messages from the current thread get [this thread]."""
+        messages = [
+            LoungeMessage(
+                id=1, label="A", message="m1", posted_at="2026-03-14 09:00:00", thread_id=42
+            ),
+            LoungeMessage(
+                id=2, label="B", message="m2", posted_at="2026-03-14 09:01:00", thread_id=99
+            ),
+            LoungeMessage(
+                id=3, label="C", message="m3", posted_at="2026-03-14 09:02:00", thread_id=42
+            ),
+        ]
+        result = build_lounge_prompt(messages, current_thread_id=42)
+        lines = result.split("\n")
+        thread_marker_lines = [line for line in lines if "[this thread]" in line]
+        assert len(thread_marker_lines) == 2
+
 
 # ---------------------------------------------------------------------------
 # API endpoint tests
@@ -242,6 +336,43 @@ class TestLoungeApiEndpoints:
         data = await get_resp.json()
         assert len(data["messages"]) == 1
         assert data["messages"][0]["label"] == "TestAI"
+
+    async def test_post_lounge_with_thread_id(self, api_client_with_lounge: TestClient) -> None:
+        """POST with thread_id stores and returns it."""
+        resp = await api_client_with_lounge.post(
+            "/api/lounge",
+            json={"message": "From thread", "label": "Bot", "thread_id": 987654321},
+        )
+        assert resp.status == 201
+        body = await resp.json()
+        assert body["thread_id"] == 987654321
+
+        # GET also returns thread_id
+        get_resp = await api_client_with_lounge.get("/api/lounge")
+        data = await get_resp.json()
+        assert data["messages"][0]["thread_id"] == 987654321
+
+    async def test_post_lounge_without_thread_id(self, api_client_with_lounge: TestClient) -> None:
+        """POST without thread_id returns null."""
+        resp = await api_client_with_lounge.post(
+            "/api/lounge",
+            json={"message": "No thread", "label": "Bot"},
+        )
+        assert resp.status == 201
+        body = await resp.json()
+        assert body["thread_id"] is None
+
+    async def test_post_lounge_invalid_thread_id_ignored(
+        self, api_client_with_lounge: TestClient
+    ) -> None:
+        """Invalid thread_id is silently ignored (stored as null)."""
+        resp = await api_client_with_lounge.post(
+            "/api/lounge",
+            json={"message": "Bad thread", "label": "Bot", "thread_id": "not-a-number"},
+        )
+        assert resp.status == 201
+        body = await resp.json()
+        assert body["thread_id"] is None
 
     async def test_post_lounge_missing_message(self, api_client_with_lounge: TestClient) -> None:
         resp = await api_client_with_lounge.post("/api/lounge", json={"label": "Bot"})

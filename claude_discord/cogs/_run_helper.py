@@ -64,7 +64,7 @@ async def _build_system_context(config: RunConfig) -> str | None:
     if config.lounge_repo is not None:
         try:
             recent = await config.lounge_repo.get_recent(limit=10)
-            lounge_context = build_lounge_prompt(recent)
+            lounge_context = build_lounge_prompt(recent, current_thread_id=config.thread.id)
             parts.append(lounge_context)
             logger.debug("Lounge context built (%d recent message(s))", len(recent))
         except Exception:

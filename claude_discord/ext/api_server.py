@@ -13,6 +13,7 @@ Security:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -388,6 +389,7 @@ class ApiServer:
                         "id": m.id,
                         "label": m.label,
                         "message": m.message,
+                        "thread_id": m.thread_id,
                         "posted_at": m.posted_at,
                     }
                     for m in messages
@@ -419,7 +421,14 @@ class ApiServer:
 
         label = str(data.get("label", "AI")).strip() or "AI"
 
-        stored = await self.lounge_repo.post(message=message, label=label)  # type: ignore[union-attr]
+        # thread_id is optional — allows tracing which Discord thread posted the message
+        raw_thread_id = data.get("thread_id")
+        thread_id: int | None = None
+        if raw_thread_id is not None:
+            with contextlib.suppress(ValueError, TypeError):
+                thread_id = int(raw_thread_id)
+
+        stored = await self.lounge_repo.post(message=message, label=label, thread_id=thread_id)  # type: ignore[union-attr]
 
         # Forward to Discord lounge channel if configured
         if self.lounge_channel_id:
@@ -431,6 +440,7 @@ class ApiServer:
                 "id": stored.id,
                 "label": stored.label,
                 "message": stored.message,
+                "thread_id": stored.thread_id,
                 "posted_at": stored.posted_at,
             },
             status=201,

@@ -34,7 +34,8 @@ Post command:
 ```bash
 curl -s -X POST "$CCDB_API_URL/api/lounge" \\
   -H "Content-Type: application/json" \\
-  -d '{"message": "your note here", "label": "your nickname"}'
+  -d '{{"message": "your note here", "label": "your nickname", \\
+       "thread_id": "'$DISCORD_THREAD_ID'"}}'
 ```
 
 Labels are free-form. Examples: "bug-hunter", "night-shift", "frontend", "careful"
@@ -53,12 +54,21 @@ _NO_MESSAGES = "\n(No messages yet — be the first to say hello!)\n"
 _INVITE_CLOSE = "\n---\n"
 
 
-def build_lounge_prompt(recent_messages: list[LoungeMessage]) -> str:
+def build_lounge_prompt(
+    recent_messages: list[LoungeMessage],
+    *,
+    current_thread_id: int | None = None,
+) -> str:
     """Return the full lounge context string to prepend to Claude's prompt.
 
     Args:
         recent_messages: Recent messages from LoungeRepository.get_recent(),
                          in chronological order (oldest first).
+        current_thread_id: The Discord thread ID of the current session.
+                           Messages from this thread are annotated with
+                           ``[this thread]`` so the AI can distinguish its
+                           own earlier posts from other sessions' posts
+                           (critical after context compaction).
     """
     parts = [_LOUNGE_INVITE]
 
@@ -68,7 +78,16 @@ def build_lounge_prompt(recent_messages: list[LoungeMessage]) -> str:
             # Truncate the timestamp to HH:MM for readability (posted_at is
             # "YYYY-MM-DD HH:MM:SS" from SQLite datetime('now', 'localtime')).
             timestamp = msg.posted_at[11:16] if len(msg.posted_at) >= 16 else msg.posted_at
-            parts.append(f"  [{timestamp}] {msg.label}: {msg.message}")
+            # Annotate messages from the current thread so the AI knows
+            # "this was me in a previous context window, not another session".
+            marker = ""
+            if (
+                current_thread_id is not None
+                and msg.thread_id is not None
+                and msg.thread_id == current_thread_id
+            ):
+                marker = " [this thread]"
+            parts.append(f"  [{timestamp}] {msg.label}{marker}: {msg.message}")
     else:
         parts.append(_NO_MESSAGES)
 
