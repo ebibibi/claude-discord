@@ -1,6 +1,6 @@
 # Changelog
 
-Last updated: 2026-03-09
+Last updated: 2026-03-15
 
 All notable changes to this project will be documented in this file.
 
@@ -8,6 +8,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [2.1.0] - 2026-03-15
+
+### Added
+- **Chat-only mode** (`chat_only_channel_ids` / `CHAT_ONLY_CHANNEL_IDS`) — when a channel is configured as chat-only, only text responses are shown to Discord; tool embeds, thinking blocks, session start/complete embeds, todo lists, and other technical details are hidden. Permission requests and AskUserQuestion are always shown regardless. Useful for public channels where non-technical users are watching (#315)
+- **Poll parameter for `/api/notify`** — REST API notification endpoint now accepts a `poll` parameter to create Discord polls alongside notification messages (#312)
+- **Plain text format for `/api/notify`** — `format: "text"` option sends notifications as plain text instead of embeds, useful for simple messages (#311)
+- **Thread ID in lounge messages** — lounge messages now include `thread_id` for self-identification after context compaction (#305)
+- **Dev worktree mode** — `make dev-on` / `make dev-off` for testing code changes on EbiBot before merging PRs; uses `sys.meta_path` hook to redirect imports to worktree (#294)
+- **StatusLine display** — configured `statusLine` shown in Discord after each session (#296)
+- **AlertResponderCog** — generic alert-monitoring Cog for custom deployments (#289)
+- **Plugin skill auto-discovery** — `/skill` command now auto-discovers skills from installed plugins (#292)
+
+### Changed
+- **Dev workflow documentation** — clarified that local testing with `make dev-on` must happen before PR merge, not after
+
+### Fixed
+- **Context compaction interrupt** — interrupt cloned runner on `compact_boundary`, not original (#306, #307)
+- **Error embed detail** — show exception detail in error embed and handle non-dict todo items (#310)
+- **CLI session import** — wire `CLI_SESSIONS_PATH` env, UTF-8 session files, `working_dir` on resume (#302)
+- **CI YAML parse error** — resolve YAML parse error in `ci.yml` broken since cc9e2d8 (#298)
+- **Auto-approve polling** — extend polling to 15min and cancel stale runs (#297)
+- **Thread title cleaning** — harden against noisy model output (#291)
+- **`/rewind` implementation** — true rewind with JSONL truncation and turn-selection UI (#293)
+- **Auto-merge filter** — exclude external-issue labeled PRs from auto-merge (#286)
+- **SkillCommandCog clone** — pass `thread_id` to `runner.clone()` (#284)
 
 ## [2.0.0] - 2026-03-06
 
@@ -273,7 +299,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI pipeline: Python 3.10/3.11/3.12, ruff, pytest
 - Branch protection and PR workflow
 
-[Unreleased]: https://github.com/ebibibi/claude-code-discord-bridge/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/ebibibi/claude-code-discord-bridge/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/ebibibi/claude-code-discord-bridge/compare/v2.0.5...v2.1.0
+[2.0.0]: https://github.com/ebibibi/claude-code-discord-bridge/compare/v1.9.0...v2.0.5
 [1.9.0]: https://github.com/ebibibi/claude-code-discord-bridge/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/ebibibi/claude-code-discord-bridge/compare/v1.7.5...v1.8.0
 [1.7.5]: https://github.com/ebibibi/claude-code-discord-bridge/compare/v1.6.0...v1.7.5
