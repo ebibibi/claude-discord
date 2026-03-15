@@ -96,15 +96,19 @@ EbiBot は `/home/ebi/claude-code-discord-bridge/` から直接起動する（sy
 # 1. worktreeを作成してブランチで作業（Claude Codeが自動で行う）
 git worktree add ../wt-my-feature -b feat/my-feature
 
-# 2. 変更をworktreeで実装・テスト後、dev modeを有効化
+# 2. worktreeで実装・ユニットテスト
 cd /home/ebi/wt-my-feature
+uv run pytest tests/ -v
+
+# 3. dev modeを有効化してDiscord上で動作確認
 make dev-on    # ~/.ccdb-dev-worktree にパスを書いてbotを再起動
+# → Discord上でEbiBotを実際に操作してテスト
+# → ユーザーが「OK」と確認するまでこのフェーズを続ける
 
-# 3. Discord上でEbiBotをテスト
-
-# 4. 問題なければdev modeを解除してPR作成
+# 4. 動作確認OKの後、dev modeを解除してPR作成・マージ
 make dev-off   # ~/.ccdb-dev-worktree を削除してbotを再起動
 make pr        # ブランチをpushしてGitHub PRを作成
+# → PRマージは動作確認が完了した後に行う。先にマージしない！
 ```
 
 **仕組み（`pre-start.sh` の実装）:**
