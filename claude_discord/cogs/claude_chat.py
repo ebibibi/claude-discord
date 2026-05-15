@@ -276,10 +276,10 @@ class ClaudeChatCog(commands.Cog):
             sections.setdefault(section, []).append(f"`/{cmd.name}` — {cmd.description}")
 
         embed = discord.Embed(
-            title="🤖 Claude Code Bot — Help",
+            title="🤖 Claude & Codex Bot — Help",
             description=(
                 "**Getting started**: type a message in the configured channel.\n"
-                "A new thread is created and Claude Code begins working.\n\n"
+                "A new thread is created and your selected AI backend begins working.\n\n"
                 "**In a thread**: reply to continue the conversation, "
                 "or use the slash commands below."
             ),

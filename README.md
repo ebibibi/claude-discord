@@ -1,19 +1,21 @@
-# claude-code-discord-bridge
+# Claude & Codex Discord Bridge
+
+*Package name: `claude-code-discord-bridge` (kebab-case)*
 
 [![CI](https://github.com/ebibibi/claude-code-discord-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/ebibibi/claude-code-discord-bridge/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/ebibibi/claude-code-discord-bridge/actions/workflows/codeql.yml/badge.svg)](https://github.com/ebibibi/claude-code-discord-bridge/actions/workflows/codeql.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Use Claude Code on your phone. Multiple threads. All at once. Real development included.**
+**Use Claude Code _or_ OpenAI Codex on your phone. Multiple threads. All at once. Real development included.**
 
-Open Claude Code from your smartphone's Discord app, spin up multiple threads, and run parallel development sessions — all without touching a keyboard. Each Discord thread becomes a fully isolated Claude Code session. Work on a feature in one thread, review a PR in another, and run a background task in a third — simultaneously. The bridge handles all the coordination so sessions never clobber each other.
+Open Claude Code or OpenAI Codex from your smartphone's Discord app, spin up multiple threads, and run parallel development sessions — all without touching a keyboard. Each Discord thread becomes a fully isolated AI session. Work on a feature in one thread, review a PR in another, and run a background task in a third — simultaneously, even mixing backends per thread. The bridge handles all the coordination so sessions never clobber each other.
 
-**No API key required. No per-token billing.** ccdb runs on top of Claude Code CLI, which is included with your [Claude Pro/Max subscription](https://claude.ai/pricing) — a flat monthly fee with no usage surprises. Unlike API-based integrations that charge per token, ccdb lets your whole team use Claude through Discord at predictable cost.
+**Use your existing subscriptions. No API key wrangling.** ccdb runs on top of the official CLIs — Claude Code (included with your [Claude Pro/Max subscription](https://claude.ai/pricing)) and OpenAI Codex (included with [ChatGPT Plus/Pro/Business](https://chatgpt.com)). Switch backends with `/backend` or set a per-thread override — your team gets both AIs through Discord at predictable cost.
 
 **[日本語](docs/ja/README.md)** | **[简体中文](docs/zh-CN/README.md)** | **[한국어](docs/ko/README.md)** | **[Español](docs/es/README.md)** | **[Português](docs/pt-BR/README.md)** | **[Français](docs/fr/README.md)**
 
-> **Disclaimer:** This project is not affiliated with, endorsed by, or officially connected to Anthropic. "Claude" and "Claude Code" are trademarks of Anthropic, PBC. This is an independent open-source tool that interfaces with the Claude Code CLI.
+> **Disclaimer:** This project is not affiliated with, endorsed by, or officially connected to Anthropic or OpenAI. "Claude" and "Claude Code" are trademarks of Anthropic, PBC; "OpenAI", "Codex", and "ChatGPT" are trademarks of OpenAI. This is an independent open-source tool that interfaces with the Claude Code CLI and the OpenAI Codex CLI.
 
 > **Built entirely by Claude Code.** This entire codebase — architecture, implementation, tests, documentation — was written by Claude Code itself. The human author provided requirements and direction via natural language. See [How This Project Was Built](#how-this-project-was-built).
 

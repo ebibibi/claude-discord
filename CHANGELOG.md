@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-05-15
+
+### Added
+- **OpenAI Codex backend** — `SessionBackend` Protocol with `ClaudeRunner` and `CodexRunner` implementations. Select via `CCDB_BACKEND=claude|codex` (default: `claude`). Both runners satisfy the same async-streaming contract.
+- **Backend identification in embeds** — `session_start_embed` title prefix and accent color reflect the active backend (Claude = blurple, Codex = OpenAI teal). `session_complete_embed` prepends a `🧠 <backend> · <model>` chip.
+- **`/backend [name] [scope]`** — show or switch backend at runtime. Persists via `SettingsRepository` so the choice survives bot restart. `scope` is `thread`-aware: invoked inside a thread defaults to thread scope, otherwise global.
+- **`/model [name] [scope]`** — show or switch the per-backend model. Same scope semantics as `/backend`. Stored separately for each backend so switching backend automatically falls back to the previously-set model for that backend.
+- **`CCDB_*` env-var namespace** — unified config under `CCDB_BACKEND`, `CCDB_MODEL`, `CCDB_COMMAND`, `CCDB_CLAUDE_COMMAND`, `CCDB_CODEX_COMMAND`, `CCDB_PERMISSION_MODE`, `CCDB_WORKING_DIR`, `CCDB_ALLOWED_TOOLS`, `CCDB_EFFORT`, `CCDB_CHANNEL_IDS`, `CCDB_MONITOR_ALL_CHANNELS`, `CCDB_DANGEROUSLY_SKIP_PERMISSIONS`. Original `CLAUDE_*` variables continue to work as fallback.
+- **`/goal` slash command** — autonomous goal-driven sessions that loop until a user-supplied completion condition is met.
+- **`BackendFactory`** — runtime authority for constructing `ClaudeRunner` / `CodexRunner` on demand from static config. Used by `/backend` to swap the active runner without restarting the bot.
+- **`BackendSettings`** — thin layer over `SettingsRepository` that resolves the active backend/model with thread > global > env precedence and persists writes from the slash commands. 8 unit tests cover resolution + mutation.
+
+### Changed
+- **Project display name** — "Claude Code Discord Bridge" → "Claude & Codex Discord Bridge". Repo, package, and Python module names (`claude-code-discord-bridge`, `claude_discord`, `claude_code_core`) are unchanged to preserve install / import compatibility.
+- **`/help` embed title** — now "🤖 Claude & Codex Bot — Help".
+- **`SessionBackend` Protocol** — extended to declare `command`, `api_port`, `timeout_seconds`, `dangerously_skip_permissions`, `allowed_tools`, `_build_env()`, and a non-`async` `run()` signature (matches how async generator functions are typed). All consumers (`claude_chat`, `skill_command`, `scheduler`, `webhook_trigger`, `cog_loader`, `discord_ui/views.StopView`, `cogs/run_config.RunConfig`) now type their `runner` parameter as `SessionBackend` instead of `ClaudeRunner`.
+- **`CodexRunner.__init__`** — accepts (and stores) `allowed_tools` for Protocol conformance; the field is currently a no-op in argv construction.
+
+### Notes
+- Thread-scoped backend/model overrides are persisted by `BackendSettings` and the `/backend` / `/model` commands set them correctly, but `ClaudeChatCog` still spawns sessions via `self.runner.clone(...)` and therefore does not yet consume them. A follow-up will swap that for `BackendFactory.build(...)` so per-thread overrides take effect at session start. Global switches are already in effect immediately.
+
 ## [2.2.0] - 2026-04-26
 
 ### Added
