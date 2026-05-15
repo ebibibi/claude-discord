@@ -254,10 +254,26 @@ async def setup_bridge(
         logger.info("Thread inbox enabled")
 
     # --- ClaudeChatCog ---
+    # Build BackendSettings up front so we can also pass it into
+    # ClaudeChatCog (so per-thread /backend overrides take effect on spawn).
+    _backend_settings_for_chat = None
+    if backend_factory is not None:
+        from .backend_settings import BackendSettings
+
+        _runner_class = runner.__class__.__name__
+        _backend_settings_for_chat = BackendSettings(
+            settings_repo,
+            env_backend=_runner_class.replace("Runner", "").lower(),
+            env_model_for_claude=(runner.model if _runner_class == "ClaudeRunner" else ""),
+            env_model_for_codex=(runner.model if _runner_class == "CodexRunner" else ""),
+        )
+
     chat_cog = ClaudeChatCog(
         bot,  # type: ignore[arg-type]  # consumers pass their own Bot subclass
         repo=session_repo,
         runner=runner,
+        factory=backend_factory,
+        backend_settings=_backend_settings_for_chat,
         max_concurrent=max_concurrent,
         allowed_user_ids=allowed_user_ids,
         ask_repo=ask_repo,

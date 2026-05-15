@@ -23,7 +23,7 @@ Open Claude Code or OpenAI Codex from your smartphone's Discord app, spin up mul
 
 ## The Big Idea: Parallel Sessions Without Fear
 
-When you send tasks to Claude Code in separate Discord threads, the bridge does four things automatically:
+When you send tasks to Claude Code or OpenAI Codex in separate Discord threads, the bridge does four things automatically — regardless of which backend you picked:
 
 1. **Concurrency notice injection** — Every session's system prompt includes mandatory instructions: create a git worktree, work only inside it, never touch the main working directory directly.
 
@@ -31,15 +31,17 @@ When you send tasks to Claude Code in separate Discord threads, the bridge does 
 
 3. **AI Lounge** — A session-to-session "breakroom" injected into every prompt. Before starting, each session reads recent lounge messages to see what other sessions are doing. Before disruptive operations (force push, bot restart, DB drop), sessions check the lounge first so they don't stomp on each other's work.
 
+4. **Backend-agnostic surface** — The same Discord UI, slash commands, scheduler, API, and Lounge work the same way whether a thread runs Claude or Codex. Mix backends across threads if you want — e.g. Claude for refactors, Codex for code review — using `/backend` per thread.
+
 ```
-Thread A (feature)   ──→  Claude Code (worktree-A)  ─┐
-Thread B (PR review) ──→  Claude Code (worktree-B)   ├─→  #ai-lounge
-Thread C (docs)      ──→  Claude Code (worktree-C)  ─┘    "A: auth refactor in progress"
-                                                           "B: PR #42 review done"
-                                                           "C: updating README"
+Thread A (feature)    ──→  Claude Code  (worktree-A)  ─┐
+Thread B (PR review)  ──→  OpenAI Codex (worktree-B)   ├─→  #ai-lounge
+Thread C (docs)       ──→  Claude Code  (worktree-C)  ─┘    "A: auth refactor in progress"
+                                                             "B: PR #42 review done (codex)"
+                                                             "C: updating README"
 ```
 
-No race conditions. No lost work. No merge surprises.
+No race conditions. No lost work. No merge surprises. No backend lock-in.
 
 ---
 
@@ -47,15 +49,16 @@ No race conditions. No lost work. No merge surprises.
 
 ### Interactive Chat (Mobile / Desktop)
 
-Use Claude Code from anywhere Discord runs — phone, tablet, or desktop. Each message creates or continues a thread, mapping 1:1 to a persistent Claude Code session.
+Use Claude Code _or_ OpenAI Codex from anywhere Discord runs — phone, tablet, or desktop. Each message creates or continues a thread that maps 1:1 to a persistent AI session. Switch backend at any time with `/backend claude` or `/backend codex` — per thread, or globally as the new default.
 
 ### Parallel Development
 
-Open multiple threads simultaneously. Each is an independent Claude Code session with its own context, working directory, and git worktree. Useful patterns:
+Open multiple threads simultaneously. Each is an independent AI session — Claude Code or Codex — with its own context, working directory, and git worktree. Useful patterns:
 
-- **Feature + review in parallel**: Start a feature in one thread while Claude reviews a PR in another.
-- **Multiple contributors**: Different team members each get their own thread; sessions stay aware of each other via the AI Lounge.
+- **Feature + review in parallel**: Start a feature with Claude in one thread while Codex reviews the PR in another.
+- **Multiple contributors**: Different team members each get their own thread (and their preferred backend); sessions stay aware of each other via the AI Lounge.
 - **Experiment safely**: Try an approach in thread A while keeping thread B on stable code.
+- **A/B the same prompt on both AIs**: Spawn two threads with the same task, one on `/backend claude` and one on `/backend codex`, then compare the diffs side-by-side.
 
 ### Scheduled Tasks (SchedulerCog)
 
@@ -137,6 +140,40 @@ If the bot restarts mid-session, interrupted Claude sessions are automatically r
 - **Automatic (upgrade restart)** — `AutoUpgradeCog` snapshots all active sessions just before a package upgrade restart and marks them automatically.
 - **Automatic (any shutdown)** — `ClaudeChatCog.cog_unload()` marks all mid-run sessions whenever the bot shuts down via any mechanism (`systemctl stop`, `bot.close()`, SIGTERM, etc.).
 - **Manual** — Any session can call `POST /api/mark-resume` directly.
+
+### Backend Switching — Claude / Codex on Demand
+
+ccdb 3.0 introduces two slash commands that change which AI handles the next session, with no bot restart:
+
+- `/backend [name] [scope]` — show or switch backend. `name` is `claude` or `codex`. `scope` is `thread` (this thread only) or `global` (server-wide default). When you omit `scope`, the command auto-resolves: in a thread it scopes to that thread, otherwise it sets the global default.
+- `/model [name] [scope]` — show or switch the model used by the **current** backend. Each backend remembers its own model preference, so flipping backend back and forth keeps your favoured models intact.
+
+Both commands persist to SQLite via `SettingsRepository`, so the choice survives bot restarts. Calling `/backend` with no arguments prints the current global default plus any thread override.
+
+Visual cues so you never forget which one you're talking to:
+
+- **Claude sessions** open with a blurple embed titled "🤖 Claude Code session started".
+- **Codex sessions** open with an OpenAI-teal embed titled "🌀 OpenAI Codex session started".
+- The completion embed prepends a `🧠 Claude · sonnet` / `🧠 Codex · gpt-5.4` chip alongside the usual duration / cost / token / context metrics.
+
+Concrete example:
+
+```text
+/backend codex                        # global → codex (next new sessions use codex)
+/model gpt-5-codex                    # global → codex uses gpt-5-codex
+                                       # …open a thread, send a message…
+/backend claude scope:thread          # this thread only → switch back to claude
+/model opus scope:thread              # this thread only → claude/opus
+                                       # other threads keep the global codex+gpt-5-codex default
+```
+
+Behind the scenes:
+
+- `BackendFactory` — captures the static configuration at boot (per-backend command path, permission mode, working dir, allowed tools, timeout, append-system-prompt, effort) and builds a fresh `ClaudeRunner` or `CodexRunner` on demand.
+- `BackendSettings` — thin wrapper over `SettingsRepository` that resolves the active backend with **thread > global > env** precedence and persists writes from the slash commands.
+- `SessionBackend` Protocol — the abstract interface that both runners satisfy. Internal plumbing (cogs, embeds, views, scheduler, webhook trigger) takes a `SessionBackend`, never one concrete runner class.
+
+**Where does each backend authenticate?** Claude Code uses your existing Claude Pro/Max subscription via the `claude` CLI's `claude login`. Codex uses your existing ChatGPT Plus/Pro/Business subscription via the `codex` CLI's `codex login`. ccdb never sees raw API keys — it just shells out to whichever CLI is selected.
 
 ---
 
@@ -233,9 +270,15 @@ If the bot restarts mid-session, interrupted Claude sessions are automatically r
 
 ---
 
-## Quick Start — Claude in Discord in 5 Minutes
+## Quick Start — Claude or Codex in Discord in 5 Minutes
 
-**Prerequisites:** Python 3.10+, [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated.
+**Prerequisites:**
+
+- Python 3.10+
+- At least one of:
+  - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) — installed and authenticated (`claude login`). Recommended for Anthropic Pro/Max subscribers.
+  - [OpenAI Codex CLI](https://github.com/openai/codex) — `npm install -g @openai/codex` then `codex login`. Uses your existing ChatGPT Plus/Pro/Business subscription.
+- You can install both. Switch between them at runtime with `/backend` (see [Backend Switching](#backend-switching--claude--codex-on-demand)).
 
 **Platform support:** Primarily developed and tested on **Linux**. macOS and Windows are supported and pass CI, but receive less real-world testing — bug reports welcome.
 
@@ -524,7 +567,9 @@ In chat-only mode, permission requests and `AskUserQuestion` prompts are **alway
 | `DISCORD_BOT_TOKEN` | Your Discord bot token | (required) |
 | `DISCORD_CHANNEL_ID` | Channel ID for Claude chat | (required) |
 | `CCDB_BACKEND` | CLI backend to use: `claude` (Claude Code CLI) or `codex` (OpenAI Codex CLI) | `claude` |
-| `CCDB_COMMAND` | Path or name of the CLI binary (overrides `CLAUDE_COMMAND`). Useful to pin a specific version. | _(auto: `claude` or `codex`)_ |
+| `CCDB_COMMAND` | Path or name of the CLI binary (overrides `CLAUDE_COMMAND`). Used by the initial runner picked from `CCDB_BACKEND`; superseded by the two per-backend variables below when `/backend` switches at runtime. | _(auto: `claude` or `codex`)_ |
+| `CCDB_CLAUDE_COMMAND` | Explicit path to the Claude CLI binary. Used by `BackendFactory` whenever `/backend claude` is active, regardless of the initial `CCDB_BACKEND`. Falls back to `CLAUDE_COMMAND`, then `claude` (PATH). | (optional) |
+| `CCDB_CODEX_COMMAND` | Explicit path to the OpenAI Codex CLI binary. Required when running the bot under systemd (default service PATH does not include `~/.npm-global/bin`). Falls back to `codex` (PATH). | (optional) |
 | `CCDB_MODEL` | Model to use (overrides `CLAUDE_MODEL`) | `sonnet` |
 | `CCDB_PERMISSION_MODE` | Permission mode for CLI (overrides `CLAUDE_PERMISSION_MODE`) | `acceptEdits` |
 | `CCDB_DANGEROUSLY_SKIP_PERMISSIONS` | Skip all permission checks — overrides `CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS` | `false` |
