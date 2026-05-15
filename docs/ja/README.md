@@ -3,20 +3,24 @@
 > **注意:** これは英語のオリジナルドキュメントを自動翻訳したものです。
 > 内容に相違がある場合は、[英語版](../../README.md)が優先されます。
 
-# claude-code-discord-bridge
+# Claude & Codex Discord Bridge
+
+*パッケージ名: `claude-code-discord-bridge`（ケバブケース）*
 
 [![CI](https://github.com/ebibibi/claude-code-discord-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/ebibibi/claude-code-discord-bridge/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/ebibibi/claude-code-discord-bridge/actions/workflows/codeql.yml/badge.svg)](https://github.com/ebibibi/claude-code-discord-bridge/actions/workflows/codeql.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**スマホの Discord から Claude Code をガンガン使おう。複数スレッドを同時に回して、本格開発もOK。**
+**スマホの Discord から Claude Code _または_ OpenAI Codex をガンガン使おう。複数スレッドを同時に回して、本格開発もOK。**
 
-Discord のスレッドを開くだけで、Claude Code セッションが立ち上がります。スマートフォンから何スレッドでも並行して動かせます — あるスレッドで機能開発、別のスレッドで PR レビュー、さらに別のスレッドでバックグラウンドタスク。全部同時進行。コンフリクトしないように、ブリッジがセッション間の調整を完全自動化します。
+Discord のスレッドを開くだけで、Claude Code または OpenAI Codex のセッションが立ち上がります。スマートフォンから何スレッドでも並行して動かせます — あるスレッドで機能開発、別のスレッドで PR レビュー、さらに別のスレッドでバックグラウンドタスク。スレッドごとにバックエンドを混在させながら、全部同時進行。コンフリクトしないように、ブリッジがセッション間の調整を完全自動化します。
+
+**既存のサブスクリプションをそのまま活用。API キーの設定は不要。** ccdb は公式 CLI の上で動作します — Claude Code（[Claude Pro/Max サブスクリプション](https://claude.ai/pricing)に含まれる）と OpenAI Codex（[ChatGPT Plus/Pro/Business](https://chatgpt.com)に含まれる）。`/backend` でバックエンドを切り替えるか、スレッドごとに設定 — 予測可能なコストで Discord 経由で両方の AI を利用できます。
 
 **[English](../../README.md)** | **[简体中文](../zh-CN/README.md)** | **[한국어](../ko/README.md)** | **[Español](../es/README.md)** | **[Português](../pt-BR/README.md)** | **[Français](../fr/README.md)**
 
-> **免責事項:** このプロジェクトは Anthropic とは無関係であり、承認や公式な関係はありません。「Claude」および「Claude Code」は Anthropic, PBC の商標です。これは Claude Code CLI と連携する独立したオープンソースツールです。
+> **免責事項:** このプロジェクトは Anthropic および OpenAI とは無関係であり、承認や公式な関係はありません。「Claude」および「Claude Code」は Anthropic, PBC の商標、「OpenAI」「Codex」「ChatGPT」は OpenAI の商標です。これは Claude Code CLI と OpenAI Codex CLI に連携する独立したオープンソースツールです。
 
 > **Claude Code によって完全構築。** このコードベース全体（アーキテクチャ、実装、テスト、ドキュメント）は Claude Code 自身によって書かれました。人間の著者は自然言語で要件と方向性を提供しましたが、ソースコードを手動で編集していません。詳細は[このプロジェクトの構築方法](#このプロジェクトの構築方法)をご覧ください。
 
