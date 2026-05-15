@@ -70,7 +70,8 @@ uv run ruff format claude_discord/
 
 ## Project Structure
 
-- `claude_discord/claude/` — Claude Code CLI interaction (runner, parser, types)
+- `claude_code_core/` — Backend-agnostic core library: `SessionBackend` protocol, `ClaudeRunner`, `CodexRunner`, `create_backend()` factory, parser, types, SQLite models
+- `claude_discord/claude/` — Re-exports from `claude_code_core` for backward compatibility
 - `claude_discord/cogs/` — Discord.py Cogs (chat, skill command, webhook trigger, auto-upgrade)
 - `claude_discord/database/` — SQLite session and notification persistence
 - `claude_discord/discord_ui/` — Discord UI components (status, chunker, embeds)

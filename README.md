@@ -145,6 +145,7 @@ If the bot restarts mid-session, interrupted Claude sessions are automatically r
 #### 🔗 Session Basics
 - **Chat-only mode** — When `CHAT_ONLY_CHANNEL_IDS` includes a channel, only Claude's text responses are shown; tool embeds, thinking blocks, session start/complete embeds, and todo lists are hidden. Permission requests and `AskUserQuestion` are always shown. Ideal for public channels where non-technical users are watching.
 - **Thread = Session** — 1:1 mapping between Discord thread and Claude Code session
+- **Goal tracking** — `/goal <condition>` sets a completion condition; Claude keeps working until the condition is met. Omit the condition to check status; pass `clear` to cancel
 - **Session persistence** — Resume conversations across messages via `--resume`
 - **Concurrent sessions** — Multiple parallel sessions with configurable limit
 - **Stop without clearing** — `/stop` halts a session while preserving it for resume
@@ -520,11 +521,19 @@ In chat-only mode, permission requests and `AskUserQuestion` prompts are **alway
 |----------|-------------|---------|
 | `DISCORD_BOT_TOKEN` | Your Discord bot token | (required) |
 | `DISCORD_CHANNEL_ID` | Channel ID for Claude chat | (required) |
-| `CLAUDE_COMMAND` | Path or name of the Claude CLI binary. Use to pin a specific version (e.g. `CLAUDE_COMMAND=/usr/local/lib/node_modules/@anthropic-ai/claude-code@2.1.77/cli.js`) — useful to avoid regressions in newer CLI releases. | `claude` |
-| `CLAUDE_MODEL` | Model to use | `sonnet` |
-| `CLAUDE_PERMISSION_MODE` | Permission mode for CLI | `acceptEdits` |
-| `CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS` | Skip all permission checks (use with caution) | `false` |
-| `CLAUDE_WORKING_DIR` | Working directory for Claude | current dir |
+| `CCDB_BACKEND` | CLI backend to use: `claude` (Claude Code CLI) or `codex` (OpenAI Codex CLI) | `claude` |
+| `CCDB_COMMAND` | Path or name of the CLI binary (overrides `CLAUDE_COMMAND`). Useful to pin a specific version. | _(auto: `claude` or `codex`)_ |
+| `CCDB_MODEL` | Model to use (overrides `CLAUDE_MODEL`) | `sonnet` |
+| `CCDB_PERMISSION_MODE` | Permission mode for CLI (overrides `CLAUDE_PERMISSION_MODE`) | `acceptEdits` |
+| `CCDB_DANGEROUSLY_SKIP_PERMISSIONS` | Skip all permission checks — overrides `CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS` | `false` |
+| `CCDB_WORKING_DIR` | Working directory for CLI (overrides `CLAUDE_WORKING_DIR`) | current dir |
+| `CCDB_ALLOWED_TOOLS` | Comma-separated list of allowed tools (overrides `CLAUDE_ALLOWED_TOOLS`) | (optional) |
+| `CCDB_CHANNEL_IDS` | Additional channel IDs, comma-separated (overrides `CLAUDE_CHANNEL_IDS`) | (optional) |
+| `CLAUDE_COMMAND` | Path or name of the Claude CLI binary (legacy name — prefer `CCDB_COMMAND`). Use to pin a specific version (e.g. `CLAUDE_COMMAND=/usr/local/lib/node_modules/@anthropic-ai/claude-code@2.1.77/cli.js`) — useful to avoid regressions in newer CLI releases. | `claude` |
+| `CLAUDE_MODEL` | Model to use (legacy — prefer `CCDB_MODEL`) | `sonnet` |
+| `CLAUDE_PERMISSION_MODE` | Permission mode for CLI (legacy — prefer `CCDB_PERMISSION_MODE`) | `acceptEdits` |
+| `CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS` | Skip all permission checks (legacy — prefer `CCDB_DANGEROUSLY_SKIP_PERMISSIONS`) | `false` |
+| `CLAUDE_WORKING_DIR` | Working directory for Claude (legacy — prefer `CCDB_WORKING_DIR`) | current dir |
 | `MAX_CONCURRENT_SESSIONS` | Max parallel Claude CLI sessions across all code paths (chat, skills, scheduler, webhooks) | `3` |
 | `SESSION_TIMEOUT_SECONDS` | Session inactivity timeout | `300` |
 | `DISCORD_OWNER_ID` | User ID to @-mention when Claude needs input | (optional) |
@@ -535,8 +544,8 @@ In chat-only mode, permission requests and `AskUserQuestion` prompts are **alway
 | `WORKTREE_BASE_DIR` | Base directory to scan for session worktrees (enables automatic cleanup) | (optional) |
 | `CLI_SESSIONS_PATH` | Path to `~/.claude/projects` for CLI session discovery (enables `/sync-sessions`) | (optional) |
 | `CUSTOM_COGS_DIR` | Directory containing custom Cog files to load at startup (see [Custom Cogs](#custom-cogs-extend-without-forking)) | (optional) |
-| `CLAUDE_ALLOWED_TOOLS` | Comma-separated list of allowed tools for Claude CLI | (optional) |
-| `CLAUDE_CHANNEL_IDS` | Additional channel IDs (comma-separated) for multi-channel setup | (optional) |
+| `CLAUDE_ALLOWED_TOOLS` | Comma-separated list of allowed tools for Claude CLI (legacy — prefer `CCDB_ALLOWED_TOOLS`) | (optional) |
+| `CLAUDE_CHANNEL_IDS` | Additional channel IDs (comma-separated) for multi-channel setup (legacy — prefer `CCDB_CHANNEL_IDS`) | (optional) |
 | `THREAD_INBOX_ENABLED` | Enable the persistent thread inbox (classifies sessions as `waiting`/`done`/`ambiguous` via `claude -p`; shown in thread dashboard) | `false` |
 | `THREAD_AUTO_RENAME` | Auto-rename new thread titles using Claude AI — generates a short, descriptive title from the first user message via a background `claude -p` call (never delays session start) | `false` |
 | `CCDB_CLI_ENV_FILE` | Path to a `KEY=VALUE` file whose variables are merged into the CLI subprocess environment on every invocation. Changes take effect immediately without restarting the bot. Useful for temporary API routing (e.g., Azure Foundry) | (optional) |
@@ -812,6 +821,16 @@ curl -X POST http://localhost:8080/api/tasks \
 ## Architecture
 
 ```
+claude_code_core/          # Shared core library (backend-agnostic)
+  backend.py               # SessionBackend protocol + create_backend() factory
+  codex_runner.py          # OpenAI Codex CLI backend
+  runner.py                # Claude CLI subprocess manager
+  parser.py                # stream-json event parser
+  types.py                 # Type definitions for SDK messages
+  models.py                # SQLite schema
+  session_repo.py          # Session CRUD
+  lounge_repo.py           # AI Lounge message CRUD
+  rewind.py                # Session rewind helpers
 claude_discord/
   main.py                  # Standalone entry point (setup_bridge + custom cog loader)
   cli.py                   # CLI entry point (ccdb setup/start commands)
@@ -836,9 +855,9 @@ claude_discord/
     run_config.py          # RunConfig dataclass — bundles all CLI execution params
     _run_helper.py         # Thin orchestration layer (run_claude_with_config + shim)
   claude/
-    runner.py              # Claude CLI subprocess manager
-    parser.py              # stream-json event parser
-    types.py               # Type definitions for SDK messages
+    runner.py              # Re-exports ClaudeRunner from claude_code_core
+    parser.py              # Re-exports parse_line from claude_code_core
+    types.py               # Re-exports type definitions from claude_code_core
   database/
     models.py              # SQLite schema
     repository.py          # Session CRUD
@@ -896,7 +915,7 @@ examples/
 uv run pytest tests/ -v --cov=claude_discord
 ```
 
-1300+ tests covering parser, chunker, repository, runner, streaming, webhook triggers, auto-upgrade (including `/upgrade` slash command, thread-invocation, and approval button), REST API, AskUserQuestion UI, thread dashboard, scheduled tasks, session sync, AI Lounge, startup resume, model switching, compact detection, TodoWrite progress embeds, custom Cog loader, permission/elicitation/plan-mode event parsing, thread inbox classification, and per-thread lock behavior.
+1365+ tests covering parser, chunker, repository, runner, streaming, webhook triggers, auto-upgrade (including `/upgrade` slash command, thread-invocation, and approval button), REST API, AskUserQuestion UI, thread dashboard, scheduled tasks, session sync, AI Lounge, startup resume, model switching, compact detection, TodoWrite progress embeds, custom Cog loader, permission/elicitation/plan-mode event parsing, thread inbox classification, per-thread lock behavior, SessionBackend protocol, CodexRunner, and backend factory.
 
 ---
 

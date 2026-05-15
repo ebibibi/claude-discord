@@ -146,6 +146,7 @@ Bot の再起動中にセッションが中断された場合、Bot が再起動
 #### 🔗 セッションの基本
 - **チャットのみモード** — `CHAT_ONLY_CHANNEL_IDS` にチャンネルを設定すると、Claude のテキスト応答のみを表示。ツール embed、思考ブロック、セッション開始/完了 embed、Todo リストはすべて非表示。許可リクエストと `AskUserQuestion` は常に表示。技術的な詳細を見せたくないパブリックチャンネルに最適。
 - **Thread = Session** — Discord スレッドと Claude Code セッションの 1:1 マッピング
+- **ゴール追跡** — `/goal <条件>` で完了条件を設定。Claude は条件を満たすまで継続して作業します。条件を省略するとステータス確認、`clear` を渡すとキャンセル
 - **セッション永続化** — `--resume` で複数メッセージをまたいだ会話を継続
 - **並行セッション** — 設定可能な上限での複数並行セッション
 - **削除せず停止** — `/stop` でセッションを保持したまま停止し、リジューム可能
@@ -521,11 +522,19 @@ CHAT_ONLY_CHANNEL_IDS=444,555
 |--------|------|-----------|
 | `DISCORD_BOT_TOKEN` | Discord Bot トークン | （必須） |
 | `DISCORD_CHANNEL_ID` | Claude チャット用チャンネル ID | （必須） |
-| `CLAUDE_COMMAND` | Claude CLI バイナリのパスまたは名前。特定バージョンを固定する場合に使用（例: `CLAUDE_COMMAND=/usr/local/lib/node_modules/@anthropic-ai/claude-code@2.1.77/cli.js`）— 新バージョンのリグレッション回避に便利。 | `claude` |
-| `CLAUDE_MODEL` | 使用するモデル | `sonnet` |
-| `CLAUDE_PERMISSION_MODE` | CLI のパーミッションモード | `auto` |
-| `CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS` | 全パーミッションチェックをスキップ（注意して使用） | `false` |
-| `CLAUDE_WORKING_DIR` | Claude の作業ディレクトリ | カレントディレクトリ |
+| `CCDB_BACKEND` | 使用する CLI バックエンド: `claude`（Claude Code CLI）または `codex`（OpenAI Codex CLI） | `claude` |
+| `CCDB_COMMAND` | CLI バイナリのパスまたは名前（`CLAUDE_COMMAND` より優先）。特定バージョンを固定する場合に使用。 | _（自動: `claude` or `codex`）_ |
+| `CCDB_MODEL` | 使用するモデル（`CLAUDE_MODEL` より優先） | `sonnet` |
+| `CCDB_PERMISSION_MODE` | CLI のパーミッションモード（`CLAUDE_PERMISSION_MODE` より優先） | `acceptEdits` |
+| `CCDB_DANGEROUSLY_SKIP_PERMISSIONS` | 全パーミッションチェックをスキップ（`CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS` より優先） | `false` |
+| `CCDB_WORKING_DIR` | CLI の作業ディレクトリ（`CLAUDE_WORKING_DIR` より優先） | カレントディレクトリ |
+| `CCDB_ALLOWED_TOOLS` | 許可するツールのカンマ区切りリスト（`CLAUDE_ALLOWED_TOOLS` より優先） | （オプション） |
+| `CCDB_CHANNEL_IDS` | マルチチャンネル設定用の追加チャンネル ID（`CLAUDE_CHANNEL_IDS` より優先） | （オプション） |
+| `CLAUDE_COMMAND` | Claude CLI バイナリのパスまたは名前（旧名 — `CCDB_COMMAND` を推奨）。特定バージョンを固定する場合に使用（例: `CLAUDE_COMMAND=/usr/local/lib/node_modules/@anthropic-ai/claude-code@2.1.77/cli.js`）— 新バージョンのリグレッション回避に便利。 | `claude` |
+| `CLAUDE_MODEL` | 使用するモデル（旧名 — `CCDB_MODEL` を推奨） | `sonnet` |
+| `CLAUDE_PERMISSION_MODE` | CLI のパーミッションモード（旧名 — `CCDB_PERMISSION_MODE` を推奨） | `auto` |
+| `CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS` | 全パーミッションチェックをスキップ（旧名 — `CCDB_DANGEROUSLY_SKIP_PERMISSIONS` を推奨） | `false` |
+| `CLAUDE_WORKING_DIR` | Claude の作業ディレクトリ（旧名 — `CCDB_WORKING_DIR` を推奨） | カレントディレクトリ |
 | `MAX_CONCURRENT_SESSIONS` | 最大並行 Claude CLI セッション数（チャット・スキル・スケジューラ・Webhook の全パスに適用） | `3` |
 | `SESSION_TIMEOUT_SECONDS` | セッション非アクティブタイムアウト | `300` |
 | `DISCORD_OWNER_ID` | Claude が入力待ちのとき @mention する Discord ユーザー ID | （オプション） |
@@ -536,8 +545,8 @@ CHAT_ONLY_CHANNEL_IDS=444,555
 | `WORKTREE_BASE_DIR` | セッション Worktree のスキャン対象ディレクトリ（自動クリーンアップを有効化） | （オプション） |
 | `CLI_SESSIONS_PATH` | CLI セッション検出用のパス（`~/.claude/projects`）。`/sync-sessions` の有効化に必要 | （オプション） |
 | `CUSTOM_COGS_DIR` | 起動時に読み込むカスタム Cog ファイルを含むディレクトリ（[カスタム Cog](#カスタム-cogフォーク不要で機能拡張) 参照） | （オプション） |
-| `CLAUDE_ALLOWED_TOOLS` | Claude CLI に許可するツールのカンマ区切りリスト | （オプション） |
-| `CLAUDE_CHANNEL_IDS` | マルチチャンネル設定用の追加チャンネル ID（カンマ区切り） | （オプション） |
+| `CLAUDE_ALLOWED_TOOLS` | Claude CLI に許可するツールのカンマ区切りリスト（旧名 — `CCDB_ALLOWED_TOOLS` を推奨） | （オプション） |
+| `CLAUDE_CHANNEL_IDS` | マルチチャンネル設定用の追加チャンネル ID（旧名 — `CCDB_CHANNEL_IDS` を推奨） | （オプション） |
 | `THREAD_INBOX_ENABLED` | 永続スレッドインボックスを有効化（`claude -p` でセッションを `waiting`/`done`/`ambiguous` に分類し、スレッドダッシュボードに表示） | `false` |
 | `THREAD_AUTO_RENAME` | 新しいスレッドのタイトルを Claude AI で自動リネーム — 最初のユーザーメッセージをもとにバックグラウンドの `claude -p` 呼び出しで短く分かりやすいタイトルを生成（セッション開始を遅延させない） | `false` |
 | `CCDB_CLI_ENV_FILE` | CLI サブプロセス起動時に毎回環境変数へマージする `KEY=VALUE` ファイルのパス。Bot を再起動せずに即座に反映される。一時的な API ルーティング（Azure Foundry への切り替えなど）に便利 | （オプション） |
@@ -813,6 +822,16 @@ curl -X POST http://localhost:8080/api/tasks \
 ## アーキテクチャ
 
 ```
+claude_code_core/          # バックエンド非依存のコアライブラリ
+  backend.py               # SessionBackend プロトコル + create_backend() ファクトリー
+  codex_runner.py          # OpenAI Codex CLI バックエンド
+  runner.py                # Claude CLI subprocess マネージャー
+  parser.py                # stream-json イベントパーサー
+  types.py                 # SDK メッセージの型定義
+  models.py                # SQLite スキーマ
+  session_repo.py          # セッション CRUD
+  lounge_repo.py           # AI Lounge メッセージ CRUD
+  rewind.py                # セッションリワインドヘルパー
 claude_discord/
   main.py                  # スタンドアロンエントリーポイント（setup_bridge + カスタム Cog ローダー）
   cli.py                   # CLI エントリーポイント（ccdb setup/start コマンド）
@@ -837,9 +856,9 @@ claude_discord/
     run_config.py          # RunConfig データクラス — CLI 実行パラメーターをまとめる
     _run_helper.py         # 薄いオーケストレーション層（run_claude_with_config + shim）
   claude/
-    runner.py              # Claude CLI subprocess マネージャー
-    parser.py              # stream-json イベントパーサー
-    types.py               # SDK メッセージの型定義
+    runner.py              # claude_code_core からの ClaudeRunner 再エクスポート
+    parser.py              # claude_code_core からの parse_line 再エクスポート
+    types.py               # claude_code_core からの型定義再エクスポート
   database/
     models.py              # SQLite スキーマ
     repository.py          # セッション CRUD
@@ -897,7 +916,7 @@ examples/
 uv run pytest tests/ -v --cov=claude_discord
 ```
 
-1300 件以上のテストがパーサー、チャンカー、リポジトリ、ランナー、ストリーミング、Webhook トリガー、自動アップグレード（`/upgrade` スラッシュコマンド、スレッド内実行、承認ボタン含む）、REST API、AskUserQuestion UI、スレッドダッシュボード、スケジュールタスク、セッション同期、AI Lounge、スタートアップリジューム、モデル切り替え、コンパクト検出、TodoWrite 進捗 embed、カスタム Cog ローダー、許可／Elicitation／Plan Mode イベントパース、スレッドインボックス分類、スレッドごとのロック動作をカバーしています。
+1365 件以上のテストがパーサー、チャンカー、リポジトリ、ランナー、ストリーミング、Webhook トリガー、自動アップグレード（`/upgrade` スラッシュコマンド、スレッド内実行、承認ボタン含む）、REST API、AskUserQuestion UI、スレッドダッシュボード、スケジュールタスク、セッション同期、AI Lounge、スタートアップリジューム、モデル切り替え、コンパクト検出、TodoWrite 進捗 embed、カスタム Cog ローダー、許可／Elicitation／Plan Mode イベントパース、スレッドインボックス分類、スレッドごとのロック動作、SessionBackend プロトコル、CodexRunner、バックエンドファクトリーをカバーしています。
 
 ---
 

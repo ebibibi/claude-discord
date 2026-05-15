@@ -73,7 +73,8 @@ uv run ruff format claude_discord/
 
 ## プロジェクト構造
 
-- `claude_discord/claude/` — Claude Code CLI との連携（runner、parser、types）
+- `claude_code_core/` — バックエンド非依存コアライブラリ: `SessionBackend` プロトコル、`ClaudeRunner`、`CodexRunner`、`create_backend()` ファクトリー、パーサー、型定義、SQLite モデル
+- `claude_discord/claude/` — `claude_code_core` からの後方互換性のための再エクスポート
 - `claude_discord/cogs/` — Discord.py の Cog（chat、skill コマンド、webhook トリガー、自動アップグレード）
 - `claude_discord/database/` — SQLite セッションおよび通知の永続化
 - `claude_discord/discord_ui/` — Discord UI コンポーネント（status、chunker、embeds）
