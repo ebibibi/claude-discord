@@ -23,6 +23,8 @@ from discord.ext import commands
 
 from claude_code_core.backend import SessionBackend
 
+from ..backend_factory import BackendFactory
+from ..backend_settings import BackendSettings
 from ..claude.rewind import find_session_jsonl, parse_user_turns
 from ..claude.types import ImageData
 from ..concurrency import SessionRegistry
@@ -110,10 +112,17 @@ class ClaudeChatCog(commands.Cog):
         chat_only_channel_ids: set[int] | None = None,
         auto_rename_threads: bool = False,
         monitor_all_channels: bool = False,
+        factory: BackendFactory | None = None,
+        backend_settings: BackendSettings | None = None,
     ) -> None:
         self.bot = bot
         self.repo = repo
         self.runner = runner
+        # Optional backend factory + settings: when both are present,
+        # session spawns consult them to honour per-thread /backend overrides.
+        # When either is None, we fall back to self.runner.clone() (legacy).
+        self._factory = factory
+        self._backend_settings = backend_settings
         self._max_concurrent = max_concurrent
         self._allowed_user_ids = allowed_user_ids
         # When True, skip channel-ID filtering and accept all guild channels.
@@ -257,6 +266,64 @@ class ClaudeChatCog(commands.Cog):
         # Check if message is in a thread under one of the configured channels
         if is_target_thread:
             await self._handle_thread_reply(message)
+
+    async def _build_runner_for_thread(
+        self,
+        *,
+        thread_id: int,
+        model_override: str | None,
+        tools_override: list[str] | None,
+        fork_session: bool,
+        working_dir_override: str | None,
+        effort_override: str | None,
+    ) -> SessionBackend:
+        """Build a runner for a session, honouring per-thread backend/model overrides.
+
+        When the cog has a BackendFactory + BackendSettings (the 3.x path), the
+        backend and model are resolved from BackendSettings — thread > global >
+        env. Per-call overrides (model_override, tools_override, ...) still win
+        over stored settings.
+
+        When either dependency is missing (legacy embedded setups, tests), we
+        fall back to ``self.runner.clone()`` so existing behaviour is preserved.
+        """
+        from ..claude.runner import _UNSET
+
+        if self._factory is None or self._backend_settings is None:
+            return self.runner.clone(
+                thread_id=thread_id,
+                model=model_override,
+                allowed_tools=tools_override if tools_override is not None else _UNSET,
+                fork_session=fork_session,
+                working_dir=working_dir_override if working_dir_override is not None else _UNSET,
+                effort=effort_override if effort_override is not None else _UNSET,
+            )
+
+        backend = await self._backend_settings.current_backend(thread_id)
+        if model_override:
+            model: str | None = model_override
+        else:
+            model = await self._backend_settings.current_model(backend, thread_id)
+
+        runner = self._factory.build(
+            backend=backend,
+            model=model,
+            thread_id=thread_id,
+        )
+
+        # Apply per-call overrides that the factory does not know about.
+        # Both ClaudeRunner and CodexRunner allow attribute assignment for
+        # these fields; effort/fork are Claude-specific and gated by hasattr.
+        if tools_override is not None:
+            runner.allowed_tools = tools_override
+        if working_dir_override is not None:
+            runner.working_dir = working_dir_override
+        if effort_override is not None and hasattr(runner, "effort"):
+            runner.effort = effort_override  # type: ignore[attr-defined]
+        if fork_session and hasattr(runner, "fork_session"):
+            runner.fork_session = True  # type: ignore[attr-defined]
+
+        return runner
 
     @app_commands.command(name="help", description="Show available commands and how to use the bot")
     async def help_command(self, interaction: discord.Interaction) -> None:
@@ -951,15 +1018,14 @@ class ClaudeChatCog(commands.Cog):
 
         tools_override = await self._get_allowed_tools()
         effort_override = await self._get_current_effort()
-        from ..claude.runner import _UNSET
 
-        runner = self.runner.clone(
+        runner = await self._build_runner_for_thread(
             thread_id=thread.id,
-            model=model_override,
-            allowed_tools=tools_override if tools_override is not None else _UNSET,
+            model_override=model_override,
+            tools_override=tools_override,
             fork_session=fork,
-            working_dir=working_dir_override if working_dir_override is not None else _UNSET,
-            effort=effort_override if effort_override is not None else _UNSET,
+            working_dir_override=working_dir_override,
+            effort_override=effort_override,
         )
         self._active_runners[thread.id] = runner
 
